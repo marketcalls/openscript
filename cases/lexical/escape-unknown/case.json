@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"lexical","description":"A backslash sequence the language does not define is OS1005, reported at the backslash.","id":"lexical/escape-unknown","languageVersion":1,"profile":"core"}

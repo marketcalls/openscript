@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"syntax","description":"A statement that ends on its operator is OS1022, reported at the empty position the expression is missing from.","id":"syntax/expression-expected","languageVersion":1,"profile":"core"}

@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"static","description":"A named argument a call does not take is OS3002, reported at the argument.","id":"static/unknown-named-argument","languageVersion":1,"profile":"core"}

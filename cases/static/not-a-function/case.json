@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"static","description":"An argument list written after a built-in series is OS2010, because a series is read bare.","id":"static/not-a-function","languageVersion":1,"profile":"core"}

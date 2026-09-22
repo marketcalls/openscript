@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"static","description":"A number written where a condition is expected is OS2011, because the language has no truthiness.","id":"static/condition-not-bool","languageVersion":1,"profile":"core"}

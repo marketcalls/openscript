@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"syntax","description":"A comparison chained to a second comparison is OS1008, reported at the second operator.","id":"syntax/chained-comparison","languageVersion":1,"profile":"core"}

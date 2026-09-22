@@ -923,24 +923,33 @@ over the same bars have no such excuse.
 
 ## 7. Categories of case
 
-| Category | Asserts | Example |
-|---|---|---|
-| `lexical` | Diagnostics from tokenising | A tab in leading whitespace is OS1002 at the right column |
-| `syntax` | Diagnostics from parsing | A chained comparison is OS1008 |
-| `static` | Diagnostics from checking | A shadowed name is OS2002 naming the outer line |
-| `warning` | An OS8xxx diagnostic, and that compilation still succeeded | A stateful call inside a branch warns and still runs |
-| `semantics` | Per-bar values | Persistence, scope, control flow, the absent value |
-| `numerics` | Per-bar values against an independent reference | Every library function, with its exact warmup |
-| `surface` | Markers, fills, levels, bar colours, background, table contents, drawing objects | A fill stops across an absent bar |
-| `time` | Per-bar values derived from time, session and instrument facts | A weekly rule at a session boundary |
-| `external` | Per-bar values from a higher timeframe or another instrument, served from case files | A daily high folded onto hourly bars, with the alignment bar named |
-| `intrabar` | Output after a `ticks.csv` replay | Rollback makes a moving bar idempotent |
-| `strategy` | Orders, fills, position, trades, performance | A reversal in one order, with the cost model applied |
-| `runtime` | A raised error code and the bar it was raised on | The loop budget raises OS5001 and stops the bar |
-| `limits` | Behaviour at and past a declared limit | An array past its element limit is OS5002 |
-| `program` | The compiled program itself | Round trip through the schema and run again, identical output |
-| `log` | The log stream | A log line carries its bar index and changes no value |
-| `rejection` | That something is refused | A case whose only assertion is that compilation failed with a given code |
+| Category | Needs a compiler | Asserts | Example |
+|---|---|---|---|
+| `lexical` | yes | Diagnostics from tokenising | A tab in leading whitespace is OS1002 at the right column |
+| `syntax` | yes | Diagnostics from parsing | A chained comparison is OS1008 |
+| `static` | yes | Diagnostics from checking | A shadowed name is OS2002 naming the outer line |
+| `warning` | yes | An OS8xxx diagnostic, and that compilation still succeeded | A stateful call inside a branch warns and still runs |
+| `semantics` | no | Per-bar values | Persistence, scope, control flow, the absent value |
+| `numerics` | no | Per-bar values against an independent reference | Every library function, with its exact warmup |
+| `surface` | no | Markers, fills, levels, bar colours, background, table contents, drawing objects | A fill stops across an absent bar |
+| `time` | no | Per-bar values derived from time, session and instrument facts | A weekly rule at a session boundary |
+| `external` | no | Per-bar values from a higher timeframe or another instrument, served from case files | A daily high folded onto hourly bars, with the alignment bar named |
+| `intrabar` | no | Output after a `ticks.csv` replay | Rollback makes a moving bar idempotent |
+| `strategy` | no | Orders, fills, position, trades, performance | A reversal in one order, with the cost model applied |
+| `runtime` | no | A raised error code and the bar it was raised on | The loop budget raises OS5001 and stops the bar |
+| `limits` | no | Behaviour at and past a declared limit | An array past its element limit is OS5002 |
+| `program` | no | The compiled program itself | Round trip through the schema and run again, identical output |
+| `log` | no | The log stream | A log line carries its bar index and changes no value |
+| `rejection` | yes | That something is refused | A case whose only assertion is that compilation failed with a given code |
+
+**The second column is what section 8's engine-only rule is read from.** An
+implementation that runs compiled programs and implements no compiler cannot be
+handed a case in a category marked `yes`: there is no compiler in it for the
+case to be about. The column is here rather than as a sentence naming four
+category names, because a sentence is a second list and the day a category is
+added is the day the two disagree. The runner reads this column, so a category
+added without a value in it stops the suite rather than being quietly run
+against an engine that has no compiler.
 
 Every category except `program` runs on every engine. `program` runs on every
 compiler.

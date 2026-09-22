@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"limits","description":"A read of a bar older than the depth limits() declared raises OS4002 on that bar, while a read inside the depth raises nothing on any bar.","id":"flow/limits-history","languageVersion":1,"profile":"core"}

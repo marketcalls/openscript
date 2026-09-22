@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"static","description":"A string added to a number is OS2003, because nothing in the language converts implicitly.","id":"static/type-mismatch","languageVersion":1,"profile":"core"}

@@ -34,6 +34,9 @@ export const packageVersion = (): string =>
 export interface CaseRow {
   readonly id: string;
   readonly outcome: string;
+  /** The profile the case declares. The runner writes it on a skipped row,
+   *  which is the row that has to say which profile it was outside of. */
+  readonly profile?: string;
   readonly channel?: string;
   readonly column?: string | null;
   readonly index?: number | null;

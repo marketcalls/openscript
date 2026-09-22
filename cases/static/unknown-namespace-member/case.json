@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"static","description":"A member a namespace does not have is OS2009, reported at the member and not at the namespace.","id":"static/unknown-namespace-member","languageVersion":1,"profile":"core"}

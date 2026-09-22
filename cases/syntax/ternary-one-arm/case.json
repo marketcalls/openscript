@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"syntax","description":"A ternary with no second arm is OS1015, reported at the question mark.","id":"syntax/ternary-one-arm","languageVersion":1,"profile":"core"}

@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"limits","description":"A script that lowers the per-bar loop budget runs a loop of exactly that budget on every bar and raises OS5001 on the bar that runs one iteration more.","id":"flow/limits-loops","languageVersion":1,"profile":"core"}

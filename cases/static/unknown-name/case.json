@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"static","description":"A name read on a line above its own assignment is OS2001, reported at the read and not at the assignment.","id":"static/unknown-name","languageVersion":1,"profile":"core"}

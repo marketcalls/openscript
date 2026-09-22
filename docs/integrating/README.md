@@ -91,10 +91,28 @@ do.
 
 ## An honest status note
 
-The conformance suite is specified and its cases are designed. It has not yet run
-against an engine written by somebody who did not write the specification. Until
-that happens, the claim that this format travels is reasoned rather than
-demonstrated.
+The conformance suite is specified, and it now holds cases in the narrowest
+profile as well as the widest. That matters more than the count: until it did,
+an engine claiming `core` was handed no case at all, every case was skipped, and
+the runner printed a pass. An engine that implemented nothing passed the bar
+this project sets for engines, and the repository's own test asserted that
+outcome. It now fails, because there are cases for it to be handed.
+
+**What the suite reaches today.** The compiler's diagnostics from tokenising,
+parsing and checking; the runtime errors; and behaviour at a declared limit.
+
+**What it does not reach yet, and this is the larger half.** The per-bar values,
+which are the categories `semantics` and `numerics` and the reason section 1
+gives for the suite existing at all: every engine produces the same numbers.
+No case asserts one, because this engine's own projection has no channel for
+them: `caseFilesFrom` writes diagnostics, orders, trades and performance, and a
+case asserting per-bar values is answered `unsupported` by the reference
+implementation. Until that channel exists, two engines can agree on every case
+in the tree and still disagree on what a moving average is.
+
+The suite has also not yet run against an engine written by somebody who did not
+write the specification. Until that happens, the claim that this format travels
+is reasoned rather than demonstrated.
 
 We will say so plainly here until it changes, because a standard that overstates
 its maturity costs its first adopter more than one that admits where it is.

@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"runtime","description":"A for loop whose end bound is the bar's absent volume raises OS4013 on that bar rather than running zero times.","id":"flow/loop-bound-absent","languageVersion":1,"profile":"core"}

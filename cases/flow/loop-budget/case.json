@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"runtime","description":"Two loops of a million iterations each leave a bar nothing to spend, and the bar that asks for one iteration more raises OS5001 at the loop that was running.","id":"flow/loop-budget","languageVersion":1,"profile":"core"}

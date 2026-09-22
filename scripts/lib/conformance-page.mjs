@@ -105,6 +105,32 @@ export function caseFileMatcher(names) {
   return (fileName) => patterns.some((pattern) => pattern.test(fileName));
 }
 
+/**
+ * The categories section 7 marks as needing a compiler.
+ *
+ * Section 8 says an implementation reporting engine-only runs every case except
+ * the compiler-diagnostic categories, and this is where that set is written
+ * down: the second column of section 7's table. Read rather than restated, so a
+ * category added to the page without a value in that column stops the suite
+ * instead of being handed to an engine that has no compiler to be about.
+ *
+ * Answers null when the page no longer prints the column, which the caller
+ * turns into a refusal naming the page.
+ */
+export function compilerCategories(page) {
+  const table = tableIn(page, '## 7. Categories of case', 'Category');
+  if (table === null) return null;
+  const at = table.header.indexOf('Needs a compiler');
+  if (at === -1) return null;
+  const out = [];
+  for (const row of table.rows) {
+    const said = (row[at] ?? '').trim();
+    if (said !== 'yes' && said !== 'no') return null;
+    if (said === 'yes') out.push(row[0].replace(/`/g, '').trim());
+  }
+  return out.length === 0 ? null : out;
+}
+
 /** The channels section 2 lets a case assert: the `asserts` row of its field table. */
 export function channelNames(page) {
   const table = tableIn(page, CASE_SECTION, 'Field');

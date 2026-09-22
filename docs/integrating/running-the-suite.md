@@ -19,8 +19,9 @@ rule: section 2 for what a case holds, section 6 for what "matches" means,
 section 9 for how a result is reported and section 10 for what happens when two
 engines disagree. This page repeats none of it; it says which command to run.
 
-The cases in the tree are harvested from runs of the shipped strategies by
-`scripts/harvest-cases.mjs`, and `npm test` holds them to what this engine
+The `strategy` cases in the tree are harvested from runs of the shipped
+strategies by `scripts/harvest-cases.mjs`, and `npm test` holds them to what
+this engine
 produces. Section 10 says a case is never edited to make an engine pass, and
 that includes this one.
 
@@ -93,6 +94,15 @@ skipped, which is a suite that says nothing about the engine that runs the
 money. So the wider claim is made and every shortfall is named on the case,
 which is the arrangement section 8 describes for a feature and has no spelling
 for here.
+
+**The compiler-diagnostic half is not a shortfall and is no longer reported as
+one.** Section 8 always said an engine reporting `engineOnly` "runs every case
+except the compiler-diagnostic categories", and the runner did not do it: there
+were no such cases, so nothing noticed. The moment there were, this engine was
+handed nineteen of them and answered `unsupported` on each, and a run of two
+engines failed on a gap that was neither engine's. The runner now reads section
+7's `Needs a compiler` column and skips those categories for an engine with no
+compiler, which is what the page promised.
 
 Everything it cannot do is named on the case with the `unsupported` outcome, and
 the engine is what names it: a program needing a capability it does not serve, or

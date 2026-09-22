@@ -7,6 +7,39 @@ nothing, fails the build before it can become permanent.
 
 ---
 
+## Unreleased
+
+**An engine that implemented nothing passed the conformance suite, and now does
+not.** Every case in the tree declared the `strategy` profile, so an engine
+claiming `core` was handed none of them: every case was skipped, the runner
+printed "Suite passed" and exited zero. The repository's own test asserted that
+outcome against an adapter written to answer no case at all. If you have been
+using a passing suite run as evidence about a `core` engine, it was not one.
+
+Twenty three `core` cases now exist, across `lexical`, `syntax`, `static`,
+`runtime` and `limits`. Nothing in the runner changed to make this work: its
+rules were already right, and what was missing was cases for them to apply to.
+
+**An engine reporting `engineOnly` is no longer handed compiler-diagnostic
+cases.** Section 8 of `conformance.md` always said it should not be, and the
+runner did not implement it, which nothing noticed while no such case existed.
+Which categories need a compiler is now a column of section 7's table, read by
+the runner, so a category added without an answer in that column stops the
+suite rather than being handed to an engine with no compiler.
+
+**What the suite still does not reach**, said here because a passing run is
+evidence and the shape of the evidence matters: no case asserts a per-bar
+value. The `semantics` and `numerics` categories, which are the reason section
+1 gives for the suite existing, cannot be written against this engine yet,
+because its own projection has no channel for them. Two engines can agree on
+every case in the tree and still disagree on what a moving average is.
+
+Issue 0020 records a third thing the new cases found: the second engine
+implements neither arrays nor the log, and the two engine gate had been green
+because no case reached either.
+
+---
+
 ## 0.5.0
 
 **`pow` has no library vector, and the reason is the same one.** A vector is a

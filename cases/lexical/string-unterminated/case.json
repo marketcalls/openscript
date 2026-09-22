@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"lexical","description":"A string literal the line ends before closing is OS1004, reported at the opening quote.","id":"lexical/string-unterminated","languageVersion":1,"profile":"core"}

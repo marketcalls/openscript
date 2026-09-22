@@ -70,7 +70,14 @@ import { join } from 'node:path';
 import { callAdapter, describeAdapter } from './lib/adapter-call.mjs';
 import { CASES } from './lib/case-directory.mjs';
 import { EXACT, compareChannels } from './lib/compare.mjs';
-import { channelNames, conformancePage, insideProfile, outcomeNames, profileOrder } from './lib/conformance-page.mjs';
+import {
+  channelNames,
+  compilerCategories,
+  conformancePage,
+  insideProfile,
+  outcomeNames,
+  profileOrder,
+} from './lib/conformance-page.mjs';
 import { nothingFound } from './lib/files.mjs';
 
 /** This repository's own adapter, which is what a bare run is measured with. */
@@ -179,6 +186,29 @@ if (options.against !== null) {
   against = other.identity;
 }
 
+/**
+ * The categories no engine in this run has a compiler for.
+ *
+ * Section 8: an implementation reporting engine-only "runs every case except
+ * the compiler-diagnostic categories, and its report says so". Which categories
+ * those are is section 7's second column, read from the page rather than listed
+ * again here.
+ *
+ * Empty unless an engine in this run says it is engine-only, so an ordinary run
+ * is unchanged. With two engines it is either of them: a case one cannot be
+ * asked about is a case they cannot be compared on.
+ */
+const noCompiler = [engine, against].some((one) => one !== null && one.engineOnly === true)
+  ? compilerCategories(page)
+  : [];
+if (noCompiler === null) {
+  refuse(
+    'spec/conformance.md section 7 no longer prints a "Needs a compiler" column for every ' +
+      'category, and section 8 says an engine-only implementation runs every case except the ' +
+      'compiler-diagnostic ones. Without that column there is nothing to read that set from.',
+  );
+}
+
 /** The profile a case has to be inside: both engines' when there are two. */
 const claimed = [engine.profile, ...(against === null ? [] : [against.profile])];
 
@@ -236,6 +266,16 @@ function runOne(found) {
   }
   if (!profiles.includes(declared.profile)) {
     return { outcome: 'error', reason: `${CASE_FILE} names the profile ${JSON.stringify(declared.profile)}, which section 8 does not list` };
+  }
+  if (noCompiler.includes(declared.category)) {
+    // Section 8. An engine that is handed compiled programs has no compiler for
+    // a compiler-diagnostic case to be about, so the case makes no claim about
+    // it either way: skipped, which section 9 says is never a pass.
+    return {
+      outcome: 'skipped',
+      profile: declared.profile,
+      reason: `the ${declared.category} category needs a compiler and an engine here reports engine-only`,
+    };
   }
   if (!claimed.every((profile) => insideProfile(profiles, profile, declared.profile))) {
     return { outcome: 'skipped', profile: declared.profile, reason: `outside the claimed profile ${claimed.join(' and ')}` };

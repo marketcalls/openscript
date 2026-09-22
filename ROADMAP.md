@@ -244,6 +244,25 @@ claim is untested.
 
 Ongoing.
 
+**The gate became falsifiable on 2026-09-22, and was not before.** Every case in
+the suite declared the `strategy` profile, so an engine claiming `core` was
+handed none of them: every case was skipped, the runner printed a pass and
+exited zero, and `tests/suite/runner.test.ts` asserted that outcome against an
+adapter that answers no case at all. An engine implementing nothing met the bar
+this phase sets. Twenty three `core` cases now exist across `lexical`, `syntax`,
+`static`, `runtime` and `limits`, and the same adapter now fails on twenty three
+errors. No change to the runner was needed for that: its rule was already right,
+and what was missing was cases for it to apply.
+
+**Two things that remain, and the second is the larger.** The suite still has no
+case asserting a per-bar value, because this engine's own projection has no
+channel for one (`caseFilesFrom` writes diagnostics, orders, trades and
+performance). So `semantics` and `numerics`, which are the categories section 1
+of `conformance.md` says the suite exists for, cannot be written against the
+reference implementation yet. And the gate itself needs an engine written by
+somebody who has not read this implementation, which nobody inside this
+repository can supply.
+
 An importer for scripts written in other chart languages, a documentation site
 generated from the specification and the error catalogue, a versioned compiled
 format with a compatibility promise, a conformance badge, and an engine written

@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"static","description":"A function body that declares a name the file already declares is OS2002, reported at the inner declaration.","id":"static/shadowed-name","languageVersion":1,"profile":"core"}

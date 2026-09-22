@@ -153,12 +153,39 @@ test('a case outside the claimed profile is skipped, never run, and never counte
   // Catches a runner that hands every case to every adapter: the narrow fake
   // exits non-zero if it is handed one, and a skipped case counted as a pass
   // would be the badge section 12 says is not a claim at all.
+  //
+  // The fake claims `core`, so the cases outside it are the ones this asserts
+  // about. It is handed the `core` cases and errors on them, which the test
+  // below is about; what must never happen is a `strategy` case reaching it.
   const run = runSuite(['--adapter', fake('narrow')]);
   const document = held(run.document);
-  assert.equal(run.status, 0, run.stderr);
-  assert.equal(document.summary['skipped'], document.cases.length);
+  const skipped = document.cases.filter((row) => row.outcome === 'skipped');
+  assert.notEqual(skipped.length, 0, 'nothing was skipped, so this asserts nothing');
+  // Every one of them was skipped for being outside `core`, never for being
+  // inside it: a case the fake claims to cover must reach it.
+  for (const row of skipped) assert.notEqual(row.profile, 'core');
   assert.equal(document.summary['pass'], 0);
-  for (const row of document.cases) assert.equal(row.outcome, 'skipped');
+});
+
+test('an engine that answers no case does not pass, which is the whole of the gate', () => {
+  // THE ONE THE PHASE 7 GATE TURNS ON, and it asserted the opposite until the
+  // first `core` cases were written.
+  //
+  // The gate is "a core profile engine ... passes the suite". Every case in the
+  // tree declared `strategy`, so an engine claiming `core` was handed none of
+  // them: every case was skipped, `failing` excludes skipped, and the runner
+  // printed "Suite passed" and exited zero. An engine implementing nothing met
+  // the bar this project sets for engines, and this file asserted that outcome.
+  //
+  // No rule in the runner was wrong. What was missing was a case for it to
+  // apply, which is why this test is about the suite's contents as much as the
+  // runner's logic: it fails again the day `core` is emptied.
+  const run = runSuite(['--adapter', fake('narrow')]);
+  const document = held(run.document);
+  const reached = document.cases.filter((row) => row.outcome === 'error');
+  assert.notEqual(reached.length, 0, 'the suite holds no core case, so the gate claims nothing');
+  assert.equal(document.summary['pass'], 0);
+  assert.equal(run.status, 1, 'an engine answering no case was reported as passing');
 });
 
 test('two engines are compared on what they computed, which catches one that echoes the expected file', () => {

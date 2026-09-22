@@ -48,11 +48,20 @@ test('the second engine passes every harvested case against the expected files',
   // The first mode, on the engine the second mode compares against. Catches an
   // engine wired in as an adapter that answers nothing: every case would be
   // reported unsupported, and the comparison below would have nothing in it.
+  //
+  // It is not asked about every case, and that is section 8 rather than a
+  // shortfall: this engine reports `engineOnly`, so the categories section 7
+  // marks as needing a compiler are skipped. What must hold is that every case
+  // it WAS asked about passed, and that it was asked about something.
   const run = runSuite(['--adapter', OTHER_ADAPTER]);
   const document = held(run.document, run.stderr);
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(document.summary['pass'], document.cases.length);
-  assert.equal(document.summary['skipped'], 0);
+  assert.notEqual(document.summary['pass'], 0, 'the engine was asked about nothing');
+  assert.equal(
+    document.summary['pass'],
+    document.cases.length - (document.summary['skipped'] ?? 0),
+    'a case it was asked about did not pass',
+  );
   for (const id of HARVESTED) {
     assert.equal(document.cases.find((row) => row.id === id)?.outcome, 'pass', id);
   }
@@ -66,7 +75,16 @@ test('the two engines agree on every case, exactly, and the document names both'
   const run = runSuite(['--adapter', OWN_ADAPTER, '--against', OTHER_ADAPTER]);
   const document = held(run.document, run.stderr);
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(document.summary['pass'], document.cases.length);
+  // The compiler-diagnostic cases are skipped, because one of the two engines
+  // has no compiler and section 8 says so. Every case both were asked about
+  // has to agree, and they have to have been asked about something: the count
+  // is held to the cases that were run rather than to zero.
+  assert.notEqual(document.summary['pass'], 0, 'neither engine was asked about anything');
+  assert.equal(
+    document.summary['pass'],
+    document.cases.length - (document.summary['skipped'] ?? 0),
+    'a case both engines were asked about did not agree',
+  );
   assert.notEqual(document.cases.length, 0);
   assert.equal(document.engine.name, 'openalgo-script');
   assert.equal(document.against?.name, 'openscript');
@@ -120,13 +138,23 @@ test('a case one engine cannot run is unsupported, and a run holding one fails',
 });
 
 test('a comparison that ran no case at all is refused rather than reported as agreement', () => {
-  // The narrow fake claims the profile that covers no case in this suite, so
-  // every case is skipped and the run compares nothing. Catches a gate wired to
-  // an engine whose profile quietly stopped covering the cases: the run would
-  // print a pass with no comparison behind it, which is the evidence a suite
-  // with no cases in it produces.
-  const run = runSuite(['--adapter', OWN_ADAPTER, '--against', fake('narrow')]);
-  assert.equal(run.status, 1);
-  assert.equal(/inspected nothing/.test(run.stderr), true, run.stderr);
-  assert.equal(held(run.document, run.stderr).summary['pass'], 0);
+  // Catches a gate wired to an engine whose profile quietly stopped covering
+  // the cases: the run would print a pass with no comparison behind it, which
+  // is the evidence a suite with no cases in it produces.
+  //
+  // The suite is one `strategy` case and the second engine claims `core`, so
+  // nothing is in common and nothing is compared. It is built here rather than
+  // taken from the tree, because the tree used to hold no `core` case and this
+  // test passed on that accident: the narrow fake was handed nothing whatever
+  // the profiles said. The accident was also the Phase 7 gate's hole, and the
+  // day it was fixed this test would have started asserting something else.
+  const suite = temporarySuite([BUY]);
+  try {
+    const run = runSuite(['--adapter', OWN_ADAPTER, '--against', fake('narrow'), '--cases', suite.root]);
+    assert.equal(run.status, 1);
+    assert.equal(/inspected nothing/.test(run.stderr), true, run.stderr);
+    assert.equal(held(run.document, run.stderr).summary['pass'], 0);
+  } finally {
+    suite.remove();
+  }
 });

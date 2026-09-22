@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"lexical","description":"A semicolon joining two statements on one line is OS1007, reported at the semicolon.","id":"lexical/semicolon","languageVersion":1,"profile":"core"}

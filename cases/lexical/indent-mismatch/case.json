@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"lexical","description":"A line whose leading whitespace differs from its sibling's is OS1003, reported at the start of that line.","id":"lexical/indent-mismatch","languageVersion":1,"profile":"core"}

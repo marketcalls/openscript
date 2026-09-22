@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"static","description":"A word that is not a type, written where a type annotation is expected, is OS2016.","id":"static/unknown-annotation-type","languageVersion":1,"profile":"core"}

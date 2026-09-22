@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"syntax","description":"A bracket closed by a different kind of bracket is OS1013, reported at the closing bracket.","id":"syntax/bracket-mismatched","languageVersion":1,"profile":"core"}

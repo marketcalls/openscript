@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"lexical","description":"A tab in the leading whitespace of a block body is OS1002, reported at the tab.","id":"lexical/tab-indent","languageVersion":1,"profile":"core"}

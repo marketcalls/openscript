@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"syntax","description":"A bracket that is never closed is OS1012, reported at the bracket that was left open and not at a closed one inside it.","id":"syntax/bracket-unclosed","languageVersion":1,"profile":"core"}

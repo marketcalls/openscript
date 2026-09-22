@@ -158,11 +158,18 @@ An identifier prefixed `unit:` is a compiler unit test rather than a conformance
 case, used where the thing being proved is a diagnostic or a compiler-internal
 invariant and there are no bars to run.
 
-Areas: `lex`, `version`, `type`, `obj`, `absent`, `bar`, `chart`, `persist`,
-`expr`, `flow`, `fn`, `scope`, `decl`, `input`, `array`, `lib`, `str`, `math`,
-`color`, `ta`, `series`, `time`, `session`, `plot`, `fill`, `level`, `barcolor`,
-`background`, `table`, `draw`, `req`, `alert`, `order`, `pos`, `perf`, `err`,
-`log`, `prog`, `conf`.
+Areas: `lex`, `lexical`, `syntax`, `static`, `version`, `type`, `obj`,
+`absent`, `bar`, `chart`, `persist`, `expr`, `flow`, `fn`, `scope`, `decl`,
+`input`, `array`, `lib`, `str`, `math`, `color`, `ta`, `series`, `time`,
+`session`, `plot`, `fill`, `level`, `barcolor`, `background`, `table`, `draw`,
+`req`, `alert`, `order`, `pos`, `perf`, `err`, `log`, `prog`, `conf`.
+
+`lex` and `lexical` are both here and are not a duplication. A `unit:lex/...`
+identifier names a test inside this implementation; a bare `lexical/...` one
+names a conformance case directory, which is the category name
+`conformance.md` section 7 gives it and is what any engine runs. The same
+diagnostic may be proved both ways, and rule 4 forbids two rows sharing one
+identifier rather than one diagnostic having two proofs.
 
 ---
 
@@ -1085,3 +1092,34 @@ written in. Section 29's note about a `study()` file applies to every row here.
 | A combined rule with no book entry | Refused at compile time, with the fix naming the per-leg levels | `specified` | `stdlib.md` 17.12, `stdlib.md` 17.14 | `unit:order/combined-rule-no-entry` |
 | A single-position read in a multi-leg file | Refused, because the twelve entries of section 17.4 name one position and the file holds several | `specified` | `stdlib.md` 17.14, `stdlib.md` 17.4 | `unit:pos/single-read-multi-leg` |
 | Switching to live is the host's | A strategy is born in sandbox mode, switching it to live is a deliberate act in the host, and no call switches one or reports that it is live | `specified` | `stdlib.md` 17.13 | `order/switch-to-live` |
+
+## Proved by a conformance case
+
+Every row above cites a test inside this implementation. These cite a
+conformance case, which is the same fact proved in the form any engine runs:
+`cases/<identifier>/` holds the case, and `conformance.md` section 7 gives the
+category its directory is named for. A row here is `implemented` because the
+case exists and passes; what it proves about another engine is that engine's
+suite run and not this page.
+
+| Feature | What it is | Status | Section | Test |
+|---|---|---|---|---|
+| A tab in leading whitespace | A tab anywhere in the leading whitespace of a block body is OS1002 at the tab, so how deep a body sits never depends on an editor setting | `implemented` | `language.md` 3.2, `errors.md` OS1002 | `lexical/tab-indent` |
+| Sibling lines agree on their indentation | A line whose leading whitespace differs from its sibling's is OS1003 at the start of that line, so a ragged body is refused rather than read as a nested one | `implemented` | `language.md` 3.2, `errors.md` OS1003 | `lexical/indent-mismatch` |
+| A string literal closes on its own line | A line that ends before the closing quote is OS1004 at the opening quote, and never a literal run on to the next line | `implemented` | `language.md` 3.5, `errors.md` OS1004 | `lexical/string-unterminated` |
+| Only the defined escapes | A backslash sequence the language does not define is OS1005 at the backslash, so two engines cannot hold different text for one literal | `implemented` | `language.md` 3.5, `errors.md` OS1005 | `lexical/escape-unknown` |
+| No statement separator | A semicolon between two statements on one line is OS1007 at the semicolon, rather than being read as a separator or skipped as whitespace | `implemented` | `language.md` 3.6, `errors.md` OS1007 | `lexical/semicolon` |
+| Comparison does not chain | A comparison written against a second comparison is OS1008 at the second operator, rather than associating the way arithmetic does | `implemented` | `language.md` 5.4, `errors.md` OS1008 | `syntax/chained-comparison` |
+| A bracket is closed | A bracket never closed is OS1012 at the bracket left open, named rather than the last bracket seen | `implemented` | `language.md` 5.2, `errors.md` OS1012 | `syntax/bracket-unclosed` |
+| A bracket is closed by its own kind | A bracket closed by a different kind is OS1013 at the closing bracket, rather than either closer accepted for either opener | `implemented` | `language.md` 5.2, `errors.md` OS1013 | `syntax/bracket-mismatched` |
+| A ternary has both arms | A conditional with no second arm is OS1015 at the question mark, rather than the absent value supplied for the arm that is missing | `implemented` | `language.md` 9.5, `errors.md` OS1015 | `syntax/ternary-one-arm` |
+| A statement does not end on its operator | An operator with no operand after it is OS1022 at the empty position, rather than joined to the next line or dropped | `implemented` | `language.md` 5.1, `errors.md` OS1022 | `syntax/expression-expected` |
+| A name is read after it is assigned | A name read above its own assignment is OS2001 at the read, not at the assignment | `implemented` | `language.md` 6.1, `errors.md` OS2001 | `static/unknown-name` |
+| An inner scope does not shadow | A function body declaring a name the file already declares is OS2002 at the inner declaration, rather than a second variable | `implemented` | `language.md` 6.4, `errors.md` OS2002 | `static/shadowed-name` |
+| Nothing converts implicitly | A string added to a number is OS2003, because the language converts nothing on its own | `implemented` | `language.md` 4.1, `errors.md` OS2003 | `static/type-mismatch` |
+| A block-local name keeps no past | A subscript on a name assigned inside a block is OS2004, because such a name retains no value from an earlier bar | `implemented` | `language.md` 7.3, `errors.md` OS2004 | `static/no-history` |
+| A namespace member exists | A member a namespace does not have is OS2009 at the member, not at the namespace | `implemented` | `language.md` 6.2, `errors.md` OS2009 | `static/unknown-namespace-member` |
+| A built-in series is read bare | An argument list after a built-in series is OS2010, because a series is not called | `implemented` | `language.md` 8.1, `errors.md` OS2010 | `static/not-a-function` |
+| No truthiness | A number written where a condition is expected is OS2011, because nothing but a boolean is a condition | `implemented` | `language.md` 5.3, `errors.md` OS2011 | `static/condition-not-bool` |
+| A type annotation names a type | A word that is not a type, written where an annotation is expected, is OS2016 | `implemented` | `language.md` 5.1, `errors.md` OS2016 | `static/unknown-annotation-type` |
+| A call takes only its own named arguments | A named argument a call does not take is OS3002 at the argument, rather than ignored | `implemented` | `language.md` 9.2, `errors.md` OS3002 | `static/unknown-named-argument` |

@@ -1,0 +1,1 @@
+{"asserts":["diagnostics"],"category":"static","description":"A subscript on a name assigned inside a block is OS2004, because a block-local name retains no past value.","id":"static/no-history","languageVersion":1,"profile":"core"}

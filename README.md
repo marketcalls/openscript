@@ -137,7 +137,10 @@ OpenScript is the opposite of that:
 - **Connected.** Designed to route orders through your own broker connection,
   with sandbox testing before live execution. The live runner is planned.
 - **Open.** Apache-2.0, a written specification, and a conformance suite anyone
-  can run against their own implementation.
+  can run against their own implementation. It covers the compiler's
+  diagnostics, the runtime errors and the limits today; the per-bar values are
+  specified and not yet testable, and [the suite's own page](./spec/conformance.md)
+  says which is which.
 
 ## How it is built
 
@@ -150,8 +153,10 @@ That one decision carries the whole project:
    and nothing for a security team to approve.
 2. A server-side engine is a few hundred lines that walk an instruction list,
    not a second implementation of the language.
-3. Anyone can write an engine in any language, and prove it correct by running
-   the conformance suite.
+3. Anyone can write an engine in any language, and hold it to the conformance
+   suite. What the suite reaches today is written down rather than implied: an
+   engine claiming the narrowest profile is handed cases and fails if it
+   answers none of them, which it was not before the `core` cases existed.
 
 One compiler. One compiled format. Many small engines, all of which must agree
 to the last decimal.
