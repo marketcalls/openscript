@@ -26,8 +26,9 @@ execution; see [Phase 6](./ROADMAP.md#phase-6-the-second-engine-and-live-running
 
 ## Status
 
-**`0.4.0` runs studies, backtests strategies, and ships the language
-intelligence an editor needs.**
+**`0.5.0` runs studies, backtests strategies, draws a strategy on a chart, and
+ships the language intelligence an editor needs.** The Python engine is on PyPI
+as `openscript`, at the same version, and the two are released together.
 
 What an install gets you today: the compiler, the engine, the chart adapter and
 the backtest. A script compiles in milliseconds in a browser tab and computes,
@@ -52,10 +53,9 @@ first thing a stranger reads:
   because a backtest works out no running equity to size against. The equity
   curve marks a trade at the size it ended up entering, so a strategy that
   scales in is reported with a drawdown deeper than the account had. A script
-  still cannot read its own equity mid-run. The `0.4.0` entry in
-  [`CHANGELOG.md`](./CHANGELOG.md) is the full list, and every item on it is
-  there because somebody would otherwise find it inside a report they had
-  already believed.
+  still cannot read its own equity mid-run. [`CHANGELOG.md`](./CHANGELOG.md) is
+  the full list, release by release, and every item on it is there because
+  somebody would otherwise find it inside a report they had already believed.
 - **No editor on screen, and that is the design.** The six headless functions are
   here and resolve as `openalgo-script/editor`: highlight, complete, diagnose,
   hover, signature and format, text in and data out, with no DOM at any tier. The
@@ -67,22 +67,40 @@ first thing a stranger reads:
   The language server that would put the same errors in a desktop editor is the
   rest of Phase 4 and is not written.
 - **No engine anybody else wrote has run the suite, so the portability claim is
-  still untested.** The second engine is here: `engine/` holds a complete
-  engine in Python with a test suite of its own, and `npm test` runs both on
-  every build. A run record carries its own
-  source text rather than only a hash of it (`sourceText` in
+  still untested.** The second engine is here: `engine/` holds a complete engine
+  in Python, published to PyPI as `openscript`, with a test suite of its own,
+  and `npm test` runs both on every build. A run record carries its own source
+  text rather than only a hash of it (`sourceText` in
   [`src/core/backtest/record.ts`](./src/core/backtest/record.ts)), and
   `caseFilesFrom` in [`src/core/backtest/case.ts`](./src/core/backtest/case.ts)
   writes the files a suite runs from straight out of a record, which is where the
-  eight cases under [`cases/`](./cases) came from. `npm run suite:agree` reports
-  8 pass of 8 between the two engines. What that run does not prove is the thing
-  the suite exists for: both engines were written in this repository, from the
-  same specification, by the same hands, so their agreement is evidence about
-  this repository rather than about the specification. Until an engine written by
+  strategy cases under [`cases/`](./cases) came from.
+
+  There are 31 cases now: 8 in the `strategy` profile and 23 in `core`.
+  **Until the `core` ones existed the suite could not fail an engine that
+  implemented nothing.** Every case declared `strategy`, so an engine claiming
+  `core` was handed none of them, and the runner reported a pass with nothing
+  behind it. That is fixed, and the fix was cases rather than code: the runner's
+  rules were already right and had nothing to apply to.
+
+  `npm run suite:agree` reports 12 pass and 19 skipped of 31 between the two
+  engines, the skips being the compiler-diagnostic cases the Python engine
+  rightly has no compiler for. What that run does not prove is the thing the
+  suite exists for: both engines were written in this repository, from the same
+  specification, by the same hands, so their agreement is evidence about this
+  repository rather than about the specification. Until an engine written by
   somebody who had only the specification passes these cases, portability is a
   design with one corroborating implementation, not a result.
 
-The version is `0.4.0` rather than `1.0` because of that list. The studies
+  And the suite still reaches less than it sounds like. **No case asserts a
+  per-bar value**, because the projection above writes diagnostics, orders,
+  trades and performance and has no channel for one. So the `semantics` and
+  `numerics` categories, which are the reason
+  [`spec/conformance.md`](./spec/conformance.md) gives for the suite existing at
+  all, cannot be written against this engine yet. Two engines can agree on every
+  case here and still disagree on what a moving average is.
+
+The version is `0.5.0` rather than `1.0` because of that list. The studies
 surface is the part that is finished, and it is the part to build on.
 
 `ROADMAP.md` says what each phase owes before it is allowed to finish. The
