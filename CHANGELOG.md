@@ -102,6 +102,24 @@ engines were found by the new cases and settled in the specification: the
 `and` and `or` tables are total (decision 71), and the drawing and grid channels
 have a written shape (decision 72).
 
+**The installed Python engine can say what it is.** `python -m openscript
+--describe` read the engine's name and version from `pyproject.toml` beside the
+package, and an install never carries that file, so on every installed copy,
+0.5.0 from the index included, it refused, and no host could run the conformance
+suite against the engine it had actually installed. It now reads the record the
+installer wrote beside the package, and still reads the file in a checkout. A
+`pyproject.toml` above an installed package that names some other project is
+ignored rather than reported as this one, and two installed records beside one
+package, which a broken upgrade leaves, are refused rather than one picked.
+
+**The Python engine is published by a workflow.** 0.6.0 is the first version
+uploaded by `release-pypi.yml` rather than by hand. Before anything is uploaded
+it builds the wheel, checks every source module is in it and nothing else is,
+installs it into a fresh interpreter, and loads a program compiled by this
+release's compiler and checks every value. It publishes through trusted
+publishing, with no stored token, and each file on the index carries a signed
+attestation of the workflow run that built it.
+
 **What this still does not prove.** Both engines were written in this
 repository, by the same hands, from the same pages. Their agreement is evidence
 about this repository and not yet about the specification: that needs an engine

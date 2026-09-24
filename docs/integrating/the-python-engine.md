@@ -81,8 +81,10 @@ as it stands:
 python engine/tools/run_tests.py
 ```
 
-A host that wants the package on the import path can install the directory with
-its own tooling, or put the directory on the path and import it. No console
+A host that wants the package on the import path can install it from the
+Python package index, where it is published as `openscript`, install this
+directory with its own tooling, or put the directory on the path and import
+it. No console
 script is declared, and the reason is worth a sentence rather than a footnote:
 there is no single command to declare, because this engine is driven two ways
 and which one a host wants depends on what it is doing.
@@ -99,6 +101,10 @@ python -m openscript --describe
 python -m openscript <case-directory>
 python -m openscript --actual <case-directory>
 ```
+
+They answer the same from an installed copy as from this directory: an
+installed engine reads its name and version from the record its installer
+wrote, since the distribution file is not installed with it.
 
 Those three invocations are the whole of the command line, and they are
 `spec/conformance.md` section 9's rather than this engine's.

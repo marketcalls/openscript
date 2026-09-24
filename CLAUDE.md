@@ -177,7 +177,9 @@ can be enforced.
 5. Bump the version in `package.json`.
 6. `npm test`.
 7. Commit, tag `vX.Y.Z`, push the tag.
-8. Dispatch the Release workflow manually with that tag.
+8. Dispatch both release workflows manually with that tag: `Release` for the
+   npm package and `Release to PyPI` for the Python engine. They carry one
+   version and ship as one release.
 
 A tag push publishes nothing by itself. A tag is cheap to create by accident and
 publishing is not reversible, so the two are kept separate.

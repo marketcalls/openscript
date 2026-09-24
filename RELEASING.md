@@ -77,7 +77,10 @@ done and nobody needs to log in again.
 1. Update the version in `package.json` and the changelog.
 2. `npm test`, which runs the seven checks, the real build and the unit tests.
 3. Commit, tag, push the tag.
-4. Dispatch the Release workflow manually with that tag.
+4. Dispatch both release workflows manually with that tag: `Release`, which
+   publishes the npm package, and `Release to PyPI`, which publishes the
+   Python engine. The section on the Python engine below has what the second
+   one checks.
 
 The tag push alone publishes nothing. A tag is cheap to create by accident and
 publishing is not reversible, so the two are kept separate on purpose.
@@ -120,34 +123,85 @@ release matters.
 ## The Python engine, to PyPI
 
 Two packages ship as one release. `scripts/check-python.mjs` holds their version
-numbers equal, so this happens in the same change as the npm publish and never
-on its own.
+numbers equal, so the Python engine is published from the same tag as the npm
+package, in the same release, and never on its own.
 
-The distribution is `engine/`, and it is built and uploaded from there:
+**Dispatch `Release to PyPI` (`.github/workflows/release-pypi.yml`) with the
+tag**, beside the npm `Release` workflow. It publishes through trusted
+publishing, so no token is stored anywhere and none is ever typed.
+
+Its `build` job refuses before anything is uploaded, and holds no identity the
+index would accept, so nothing in it can upload:
+
+- a red suite: the full `npm test`, both engines included, and a missing
+  changelog entry
+- a tag that does not name the version both manifests declare, or a version the
+  index cannot spell safely. A prerelease written `0.7.0-rc.1` for npm becomes
+  `0.7.0rc1` on the index, which never installs a prerelease unless asked; a
+  label other than alpha, beta or rc is refused rather than guessed at
+- `engine/tools/check_release.py dist`: anything but exactly the wheel and the
+  source distribution for this version, a declared runtime dependency, a source
+  module missing from the wheel, or anything the wheel would install beside the
+  engine
+- `engine/tools/check_release.py installed`: the wheel installed into a fresh
+  interpreter with nothing fetched and used from outside the repository, where it
+  must describe itself as this release, answer `python -m openscript
+  --describe`, and load a probe compiled by this release's own compiler and plot
+  every value exactly
+
+Then `publish` uploads exactly what was checked, and nothing else runs in that
+job. Afterwards `confirm` installs the version the index is serving and runs the
+same installed checks against it. A red `confirm` is not a reason to publish
+again, which the index would refuse anyway: it is a reason to look at what the
+index is serving.
+
+**The two checks that have been wrong before, and why they are mechanical now.**
+`[tool.setuptools] packages` is a hand-written list, and it once named only
+`openscript`, so the distribution shipped the machine and none of the halves it
+calls. And a check once reported an installed engine that was really the
+checkout, because the probe interpreter had no installer. `dist` compares every
+module file in the wheel against the source tree, and `installed` refuses an
+engine imported from anywhere but the interpreter's own site-packages.
+
+### The trusted publisher, once
+
+On pypi.org, under the `openscript` project: Manage, then Publishing, then add a
+new trusted publisher for a repository workflow, with exactly these values.
+
+| Field | Value |
+|---|---|
+| Owner | `marketcalls` |
+| Repository name | `openscript` |
+| Workflow name | `release-pypi.yml` |
+| Environment name | `release` |
+
+The environment is the one the npm release already uses, so its protection
+rules, the required reviewers and which refs may deploy, cover both registries.
+Then delete any API token made for this project. With a trusted publisher nothing
+needs one, and a token that exists is a token that can leak.
+
+### Checking a build by hand
+
+The same checks run locally, before anything is dispatched. From the repository
+root, with a scratch directory of your own in place of `$T`:
 
 ```
-cd engine
-rm -rf dist build *.egg-info
-uv build --out-dir dist .
-uvx twine check dist/*
-uvx twine upload dist/*
+python -m pip install build==1.6.1
+python -m build engine --outdir "$T/dist"
+python engine/tools/check_release.py dist "$T/dist" --tag vX.Y.Z
+
+npm run build
+node scripts/release-python-probe.mjs "$T/probe.program.json"
+
+python -m venv "$T/host"
+"$T/host/bin/python" -m pip install --no-index "$T"/dist/*.whl
+mkdir "$T/elsewhere" && cd "$T/elsewhere"
+"$T/host/bin/python" -P -m openscript --describe > describe.json
+"$T/host/bin/python" <repository>/engine/tools/check_release.py installed \
+  --tag vX.Y.Z --program "$T/probe.program.json" --describe-output describe.json
 ```
 
-**Check the wheel before uploading, not after.** An upload cannot be undone: a
-deleted release does not free its version, so the number is spent whatever
-happens next. Two things to look at, both of which have been wrong:
-
-- **Every package is in it.** `[tool.setuptools] packages` is a hand-written
-  list, and it once named only `openscript`, so the distribution shipped the
-  machine and none of the halves it calls. `check-python.mjs` now holds that
-  list to the tree, and the wheel can be read directly:
-  `python -c "import zipfile; print([n for n in zipfile.ZipFile('dist/openscript-<v>-py3-none-any.whl').namelist() if n.endswith('__init__.py')])"`
-- **It installs and imports somewhere else.** A clean interpreter, the built
-  wheel, and an import of each half. The tree has every directory present
-  whether or not the distribution carries them, so nothing here can tell you
-  this: only an install elsewhere can.
-
-**The token is never pasted anywhere it is recorded.** `twine` reads
-`TWINE_USERNAME=__token__` and `TWINE_PASSWORD` from the environment. Use a
-token scoped to this project rather than the account, so a leak reaches nothing
-else.
+On Windows the interpreter is `Scripts/python.exe` in place of `bin/python`.
+`python -m build` leaves `engine/openscript.egg-info` behind, which
+`scripts/check-no-eval.mjs` refuses to walk past because it cannot place it;
+delete it before running `npm test` again.

@@ -30,11 +30,12 @@ have it say. The stage's report records that as a defect of the page rather than
 leaving it to be discovered.
 """
 
+import email.parser
 import json
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Mapping, Optional
 
 from ..version import FORMAT, LANGUAGE_VERSIONS
 from .expectations import expected_channels
@@ -46,6 +47,11 @@ from .spellings import Malformed
 
 #: The distribution file beside the package, which states the version once.
 _PROJECT = "pyproject.toml"
+
+#: The distribution this engine is, as the build and the installer name it. It is
+#: named for its top package, so the name is read from where this module sits
+#: rather than written out a second time beside the one in pyproject.toml.
+_NAME = __name__.split(".", 1)[0]
 
 #: Section 8: what this implementation claims. The profile that covers the cases
 #: it runs, which is the one a case it would report ``unsupported`` is not in.
@@ -65,24 +71,89 @@ PROFILE = PROFILES[2]
 
 
 def _distribution() -> Dict[str, Any]:
-    """``pyproject.toml``, read from beside the package, or a refusal saying so.
+    """The engine's name and version, from wherever this copy of it was built.
 
-    The version is a fact of the release and is written in the distribution
-    file; ``scripts/check-python.mjs`` already holds that file and the package
-    manifest equal, so reading it here adds no third copy. An installed package
-    that does not carry the file cannot prove its version, and an identity with
-    an invented version in it is worse than an adapter that says which file it
-    could not find.
+    The version is a fact of the release, stated once in the distribution file,
+    and ``scripts/check-python.mjs`` holds that file and the package manifest
+    equal, so nothing read here is a third copy.
     """
-    path = Path(__file__).resolve().parent.parent.parent / _PROJECT
-    try:
-        with path.open("rb") as file:
-            return tomllib.load(file)["project"]
-    except (OSError, KeyError, ValueError) as reason:
+    return _identity(Path(__file__).resolve().parent.parent.parent / _PROJECT, _installed)
+
+
+def _installed(name: str, site: Optional[Path] = None) -> Optional[Mapping[str, str]]:
+    """The metadata an installer wrote beside this package, or ``None`` if none did.
+
+    Every installer records a distribution in ``<name>-<version>.dist-info``
+    beside the package it installed, and ``METADATA`` there holds the name and
+    version the build wrote. It is read directly, with the standard library's
+    own header parser, rather than through the import system's metadata finder:
+    this project refuses anything that loads modules by a name computed at run
+    time, and reading two headers out of one file does not need it.
+
+    Two records beside one package is a broken upgrade, and there is no telling
+    which of them describes the files actually installed, so that is refused
+    by name rather than resolved by picking one.
+    """
+    if site is None:
+        site = Path(__file__).resolve().parent.parent.parent
+    records = sorted(site.glob(f"{name}-*.dist-info/METADATA"))
+    if not records:
+        return None
+    if len(records) > 1:
         raise Malformed(
-            f"{path} could not be read, and section 9 has an adapter answer with the engine's own "
-            f"name and version: {reason}"
-        ) from None
+            f"{len(records)} installed records for {name!r} sit beside this package "
+            f"({', '.join(record.parent.name for record in records)}), so its version cannot "
+            "be told. Reinstall it so that one remains."
+        )
+    with records[0].open(encoding="utf-8") as file:
+        return email.parser.Parser().parse(file, headersonly=True)
+
+
+def _identity(
+    project_file: Path, installed: Callable[[str], Optional[Mapping[str, str]]]
+) -> Dict[str, Any]:
+    """Read the identity from ``project_file``, else from the installed distribution.
+
+    **Two places, because a copy of this engine lives in one of two.** A checkout
+    has ``pyproject.toml`` beside the package, which is what the conformance suite
+    runs. An installed copy does not: the build reads that file and records what
+    it says in the distribution's own metadata, and the file itself is never
+    installed. This used to read only the first, so ``python -m openscript
+    --describe`` failed on every installed copy, 0.5.0 from the index included,
+    and no host could run the suite against the engine it had actually installed.
+
+    The installed metadata is not an invented version. It is the one the wheel
+    was built with, written by the same build from the same file, and it is what
+    the installer, the index and ``pip show`` all report for this copy.
+
+    **A file that names some other project is not this one's.** Beside an
+    installed package, the directory above is ``site-packages``, where a stray
+    ``pyproject.toml`` from anything else would otherwise be read as this
+    engine's identity. The name is checked, and a mismatch falls through.
+
+    Neither available is still a refusal that names both, because an identity
+    with a guessed version in it is worse than an adapter saying what it could
+    not find.
+    """
+    reasons = []
+    try:
+        with project_file.open("rb") as file:
+            project = tomllib.load(file)["project"]
+        if project.get("name") == _NAME:
+            return project
+        reasons.append(f"{project_file} names {project.get('name')!r}, not {_NAME!r}")
+    except (OSError, KeyError, ValueError) as reason:
+        reasons.append(f"{project_file} could not be read: {reason}")
+
+    recorded = installed(_NAME)
+    if recorded is not None and recorded.get("Name") and recorded.get("Version"):
+        return {"name": recorded["Name"], "version": recorded["Version"]}
+    reasons.append(f"no installed distribution named {_NAME!r} was found")
+
+    raise Malformed(
+        "section 9 has an adapter answer with the engine's own name and version, and "
+        + "; ".join(reasons)
+    )
 
 
 def describe() -> Dict[str, Any]:
