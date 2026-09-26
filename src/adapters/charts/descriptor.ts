@@ -14,7 +14,7 @@
  * second thing to keep in step with the specification.
  *
  * **The hooks that follow a calculation read it and do not repeat it.** Markers,
- * the grid, the drawing objects and each alert's message channel are taken once,
+ * the grids, the drawing objects and each alert's message channel are taken once,
  * while the engine is in hand, and left in the run record `produced.ts` keeps.
  * The chart calls each hook after every calculation, so asking twice gives one
  * answer and a study with a grid costs the same over a hundred thousand bars as
@@ -43,6 +43,7 @@
  */
 import type { CompiledProgram } from '../../core/emit/index.js';
 import { alertMessages, buildAlerts } from './alerts.js';
+import { capabilitiesOf } from './capabilities.js';
 import { valuesFrom } from './columns.js';
 import type {
   ChartBar,
@@ -70,8 +71,9 @@ import type {
   ChartGrid,
   ChartMarker,
   ChartSurfaceContext,
+  ChartTableSpec,
 } from './surfaces.js';
-import { buildTable } from './tables.js';
+import { buildTables, firstGrid } from './tables.js';
 
 /** The grey an unnamed marker is drawn in, where the host names no default. */
 const MARKER_COLOUR = 'rgba(128, 128, 128, 1)';
@@ -87,11 +89,14 @@ export function descriptorFor(
   // afterwards carry a settings key instead of a value, and the two that cannot
   // are read again per call: a level's style and the pane's range.
   const declared = lookupFor(program, options.settings ?? {});
+  // Which of the descriptor's newer hooks the host's chart reads. A hook it may
+  // not read is left off, and what needs one is refused before a bar runs.
+  const chart = capabilitiesOf(options.chartVersion);
 
   const overlay = boolField(program.meta.overlay, declared) === true;
   const plots = buildPlots(program, declared, !overlay);
   const levels = buildLevels(program);
-  const fills = buildFills(program, declared);
+  const fills = buildFills(program, declared, chart);
   const paint = buildPaint(program);
   const alerts = buildAlerts(program, declared);
   const columns = [
@@ -99,6 +104,7 @@ export function descriptorFor(
     ...levels.columns,
     ...paint.columns,
     ...alerts.columns,
+    ...fills.columns,
   ];
   const markerColour = options.markerColor ?? MARKER_COLOUR;
 
@@ -117,7 +123,7 @@ export function descriptorFor(
     const lookup = lookupFor(program, settings);
     remember(settings, {
       markers: buildMarkers(program, lookup, bars, ran.columns, markerColour),
-      table: buildTable(program, lookup, ran.tables),
+      tables: buildTables(program, lookup, ran.tables),
       drawings: buildDrawings(ran.drawings),
       messages: alertMessages(program, ran.columns),
     });
@@ -134,7 +140,7 @@ export function descriptorFor(
     placement: overlay ? 'onchart' : 'pane',
     inputs: inputRows(program),
     plots: plots.plots,
-    ...(fills.length === 0 ? {} : { fills }),
+    ...(fills.fills.length === 0 ? {} : { fills: fills.fills }),
 
     ...(alerts.alerts.length === 0 ? {} : { alerts: alerts.alerts }),
 
@@ -175,7 +181,16 @@ export function descriptorFor(
         }),
     ...(program.outputs.tables.length === 0
       ? {}
-      : { table: (ctx: ChartSurfaceContext): ChartGrid | null => producedFor(ctx.settings).table }),
+      : {
+          table: (ctx: ChartSurfaceContext): ChartGrid | null =>
+            firstGrid(producedFor(ctx.settings).tables),
+        }),
+    ...(program.outputs.tables.length === 0 || !chart.grids
+      ? {}
+      : {
+          tables: (ctx: ChartSurfaceContext): readonly ChartTableSpec[] =>
+            producedFor(ctx.settings).tables,
+        }),
     ...(program.requires.includes('objects')
       ? {
           draws: (ctx: ChartSurfaceContext): readonly ChartDrawing[] =>

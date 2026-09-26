@@ -1,5 +1,5 @@
 {
-  "note": "Every field of a compiled program's outputs, and whether the chart adapter carries it. Read by scripts/check-chart-surface.mjs, which compiles a study declaring two of everything, builds a descriptor from it, and refuses a field the program carries that this file does not mention, a field mentioned here that the format no longer has, and a declaration the descriptor drops whose count is not recorded below. A narrowing is a fact about this chart's descriptor and never about the language: the compiled program carries all of it, and another host may draw all of it.",
+  "note": "Every field of a compiled program's outputs, and whether the chart adapter carries it. Read by scripts/check-chart-surface.mjs, which compiles a study declaring two of everything, builds a descriptor from it, and refuses a field the program carries that this file does not mention, a field mentioned here that the format no longer has, and a declaration the descriptor drops whose count is not recorded below. A narrowing is a fact about this chart's descriptor and never about the language: the compiled program carries all of it, and another host may draw all of it. Some of what the descriptor carries depends on the chart the host states in ChartAdapterOptions.chartVersion; an entry under refused names the version it is drawn from, and the check builds its fixture's descriptor as a host stating that version would, and proves the refusal below it.",
   "resolution": {
     "note": "When each member of the descriptor resolves a declaration option that was written as an input(). A declaration option may be an input() (docs/inputs.md), so the value behind it is the host's stored setting rather than the literal in the source. The two halves below are the only two answers there are, and a member in neither is one whose answer to a settings change is whatever it happens to be. Read by scripts/check-chart-surface.mjs, which moves one field of each kind and refuses a descriptor member neither list names.",
     "atBuild": {
@@ -26,6 +26,7 @@
         "background",
         "markers",
         "table",
+        "tables",
         "draws",
         "attach"
       ]
@@ -68,17 +69,16 @@
       "narrowed": []
     },
     "fills": {
-      "carried": ["between", "colorUp", "colorDown", "opacity", "overlay"],
-      "narrowed": [
-        {
-          "field": "colorUpChannel",
-          "why": "A per-bar band colour. The chart's band takes a fixed colour or a settings key and is drawn once, so there is no per-bar channel to point it at. A program whose band carries one is refused before any bar runs, with OS6024: see refused below."
-        },
-        {
-          "field": "colorDownChannel",
-          "why": "The other side of the same band, on the same ground."
-        }
-      ]
+      "carried": [
+        "between",
+        "colorUp",
+        "colorDown",
+        "colorUpChannel",
+        "colorDownChannel",
+        "opacity",
+        "overlay"
+      ],
+      "narrowed": []
     },
     "levels": {
       "carried": ["title", "channel", "color", "lineStyle", "lineWidth"],
@@ -110,7 +110,7 @@
       "narrowed": [
         {
           "field": "key",
-          "why": "The grid's stable identity. It pairs the declaration with the cell buffer the engine wrote, and the chart's grid has no id of its own to carry it into."
+          "why": "The grid's stable identity. It pairs the declaration with the cell buffer the engine wrote, and it is carried as the grid's id through the list of grids where the host states a chart that has one (see refused below). The single table hook an older chart reads has no id to carry it into, and needs none, because such a chart draws one grid and has nothing to tell apart."
         },
         {
           "field": "title",
@@ -138,12 +138,14 @@
     {
       "key": "tables.count",
       "code": "OS6024",
-      "why": "The descriptor has one table hook, so one grid per study reaches the pane. A study declaring a second is refused before any bar runs, naming the second grid, rather than drawn with its second panel missing."
+      "drawnFrom": "2.5.4",
+      "why": "A chart before 2.5.4 has one table hook, so one grid per study reaches the pane. From 2.5.4 the descriptor also has a list of grids, each under a stable id, and every declared grid is drawn through it, in declaration order and under its declaration's key, while the single hook keeps the first. A host that states an earlier chart version, or none, or one that cannot be read, has a study declaring a second grid refused before any bar runs, naming the second grid, rather than drawn with its second panel missing."
     },
     {
       "key": "fills.colorChannel",
       "code": "OS6024",
-      "why": "The chart's band takes one colour for the whole run. A band whose colour the script computes per bar is refused before any bar runs rather than drawn in a colour the script did not choose."
+      "drawnFrom": "2.5.4",
+      "why": "A chart before 2.5.4 draws a band in one colour for each side for the whole run. From 2.5.4 the band has a per-bar colour callback, and colorUpChannel and colorDownChannel are carried through it: each bar answers the colour computed for the side the band is on there, decided as the chart decides it, the first plot at or above the second; an absent colour leaves the bar unpainted; a side that is not computed keeps its declared colour; and the band's opacity dims a computed colour exactly as it dims a constant one. A host that states an earlier chart version, or none, or one that cannot be read, has such a band refused before any bar runs rather than drawn in a colour the script did not choose."
     }
   ]
 }

@@ -125,6 +125,18 @@ export interface ChartGrid {
   readonly options?: ChartTableOptions;
 }
 
+/**
+ * One grid of several, under an identity the chart keeps it by.
+ *
+ * The chart reuses the grid a recompute names again and removes one it no
+ * longer names, so the id is the declaration's key: stable across recomputes,
+ * never empty, and unique within a program because the compiler writes one per
+ * declaration.
+ */
+export interface ChartTableSpec extends ChartGrid {
+  readonly id: string;
+}
+
 /** One end of a drawing: a time on the shared axis, a price on the pane's scale. */
 export interface ChartAnchor {
   readonly time: number;

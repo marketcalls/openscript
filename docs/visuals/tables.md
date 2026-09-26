@@ -55,21 +55,29 @@ that depends on a bar's data has nothing to reserve room for.
 Make `position` an input. It costs one line, and which corner is free depends on
 the chart the user has, not on the study.
 
-### One grid reaches a chart pane
+### How many grids reach a chart pane
 
 The language lets a study declare as many grids as it likes and the compiled
-program carries all of them. A chart pane has room for one, so the chart adapter
-in this repository refuses a study that declares a second, before any bar runs,
-with OS6024 naming the second grid. It used to draw the first and say nothing
-about the rest, which is a study whose second panel never appears and whose
-cells look broken.
+program carries all of them. The chart adapter in this repository draws every
+one of them on a chart from version 2.5.4 on, each in the corner its own
+`position` names, and keeps each grid from one recompute to the next rather
+than building it again. Give each grid a corner of its own: two pinned to the
+same corner are drawn one over the other.
 
-So declare one grid per study and give it the rows you need. If you want two
-panels, that is two studies, and a user can put them in different corners.
+An older chart has room for one grid per study. On one, or on a host that does
+not say which chart it has, the adapter refuses a study that declares a second,
+before any bar runs, with OS6024 naming the second grid. It used to draw the
+first and say nothing about the rest, which is a study whose second panel never
+appears and whose cells look broken.
+
+So if the study has to run on any host, declare one grid and give it the rows
+you need. Two grids with different corners are the tidier layout where the host
+draws both, and where it does not, two panels are two studies, which a user can
+put in different corners.
 
 This is a limit of the drawing surface rather than of the language: another host
-may draw every grid. What every host in this repository does and does not draw
-is recorded in [spec/chart-narrowings.json](../../spec/chart-narrowings.json).
+may draw every grid. What the chart adapter here draws, and from which chart
+version, is recorded in [spec/chart-narrowings.json](../../spec/chart-narrowings.json).
 
 ## Writing cells
 
@@ -370,7 +378,8 @@ place for it.
 | The chart is slow with a table on it | Cells written on every bar of history | Write inside `if bar.isLast` |
 | OS2003 on a `cell` call | A number passed where a string is expected | `text(value, decimals)` |
 | The panel hides the candles under it | A solid `bgColor` | `fade(black, 25)` or similar |
-| OS6024 naming a second table | A chart pane draws one grid | Declare one grid, or split the study in two |
+| OS6024 naming a second table | The host's chart draws one grid per study, or the host did not say which chart it has | Run it on a host with a newer chart, declare one grid, or split the study in two |
+| Two grids drawn over each other | Both pinned to the same corner | Give each grid its own `position` |
 | Numbers do not line up | Left aligned by default | `align = "right"` on the value column |
 
 ## See also

@@ -7,6 +7,57 @@ nothing, fails the build before it can become permanent.
 
 ---
 
+## 0.8.0
+
+The chart adapter now draws two things it used to refuse, on a chart that can
+draw them. A band whose colour the script computes per bar is shaded bar by bar,
+and a study that declares more than one grid gets every grid, each in the corner
+its own `position` names. Both need hooks the chart library added in its version
+2.5.4, and a chart ignores a hook it does not know, so the adapter is told which
+chart it is drawing on: a host passes the library's exported `VERSION` string as
+the new `chartVersion` option, `descriptorFor(program, { chartVersion: VERSION })`.
+
+A host that passes nothing draws exactly what it drew with 0.7.2, and such a
+study is still refused before any bar runs with OS6024. So is one on a chart
+older than 2.5.4, on a prerelease of 2.5.4, or on a version string that cannot
+be read, and the refusal now ends by saying which version the host stated. On no
+chart version is either thing drawn in part or dropped in silence.
+
+How a computed band colour is drawn. Each bar is shaded in the colour the script
+computed there for the side the band is on, and the side is decided the way the
+chart decides it, the first plot at or above the second, so the colour always
+belongs to the run the chart draws that bar in. An absent colour leaves the bar
+unshaded, as `docs/visuals/fills.md` has always taught. A side the script did
+not compute keeps the colour it declared. `opacity` dims a computed colour
+exactly as it dims a constant one, and the twelve percent fade of a band with no
+colour of its own does not apply to a band whose colour is computed.
+
+How several grids are drawn. Each grid reaches the chart under its declaration's
+key, which does not change between recomputes, so the chart keeps a grid rather
+than building it again on every tick. The single `table` hook still carries the
+first grid, for a chart without the list. Two grids pinned to the same corner are
+drawn one over the other, so give each grid its own `position`.
+
+For a host that type checks the descriptor: `ChartFill` gains an optional
+`colorBy`, `ChartDescriptor` an optional `tables`, and `ChartFillContext` and
+`ChartTableSpec` are new exports. The one line assignment to the chart library's
+own descriptor type was compiled against that library's types at 2.5.1 and at
+2.5.5, and a study with two grids and a computed band was drawn end to end on
+2.5.5.
+
+The Python engine is unchanged. It never had either limit: its fills channel
+already publishes each band's colours bar by bar, and its table channel already
+serves every declared grid in declaration order. The chart adapter ships only in
+the npm package. The Python package moves to 0.8.0 because the two packages carry
+one version and ship as one release, and upgrading it changes nothing.
+
+No compiled-format change, no language change, and no computed value moves:
+every shipped example builds the same descriptor and the same columns as 0.7.2
+when no chart version is stated. Still not decided: a band that computes one
+side's colour and names none for the other draws that side in the chart's own
+default colour, as a band with one constant side always has; whether such a side
+should be unshaded is recorded as open in decision 75.
+
 ## 0.7.2
 
 Running totals in both engines now survive one overflowing bar. `pvt` added its

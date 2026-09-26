@@ -3,7 +3,7 @@
   "sites": [
     { "file": "src/adapters/charts/alerts.ts", "count": 1, "reason": "A column key holding a whole number, the chart's own and never compared with another engine's." },
     { "file": "src/adapters/charts/colours.ts", "count": 8, "reason": "A CSS colour string for the chart to draw: the adapter's output, which no case file or channel carries." },
-    { "file": "src/adapters/charts/columns.ts", "count": 1, "reason": "A column key holding a whole number, the chart's own and never compared with another engine's." },
+    { "file": "src/adapters/charts/columns.ts", "count": 2, "reason": "A column key holding a whole number, the chart's own and never compared with another engine's." },
     { "file": "src/adapters/charts/settings.ts", "count": 2, "reason": "The text of a settings control the host draws, never a case file or a channel two engines compare. Route through the writer when the file is next touched." },
     { "file": "src/core/accounting/charges.ts", "count": 12, "reason": "A refusal's sentence naming the rate, the floor or the digit count a schedule got wrong, printed for the person who wrote the schedule." },
     { "file": "src/core/backtest/compare.ts", "count": 4, "reason": "Two sentences of a comparison report and a key pairing trades by the bar they opened on, none of them a file another engine reads." },

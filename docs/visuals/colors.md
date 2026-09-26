@@ -183,6 +183,12 @@ The same argument shape appears on the other surfaces:
 | `background(color)` | Every bar the same | The usual case |
 | `cell(..., textColor, bgColor)` | The cell's colour | Recomputed each time the cell is written |
 
+A band's per-bar colour is the one row of that table that depends on the chart
+drawing it: the chart adapter in this repository draws it on a chart new enough
+to take one and refuses it with OS6024 on any other. [fills.md](./fills.md) says
+which charts those are, and shows a band that switches itself off in a way
+every chart draws.
+
 `fill` also takes two colours rather than one:
 
 ```

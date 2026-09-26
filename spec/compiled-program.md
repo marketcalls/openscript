@@ -2523,10 +2523,10 @@ a separate module, and it is a mapping rather than a decision:
 | `meta.range` | Fixed pane range |
 | `inputs[]` | The settings rows, by `kind` |
 | `outputs.plots[]` and their channels | One column per plot, `null` for a gap |
-| `outputs.fills[]` | Shaded bands between two plot keys |
+| `outputs.fills[]` | Shaded bands between two plot keys, in a colour per bar where the program computes one |
 | `outputs.levels[]` | Horizontal reference levels, from the last bar's value |
 | `outputs.markers[]` | Bar anchored markers |
-| `outputs.tables[]` | A summary grid pinned to a corner |
+| `outputs.tables[]` | Summary grids, each pinned to a corner |
 | `outputs.alerts[]` | Conditions the runtime watches |
 | `outputs.barColor` | Recolouring of the price bars |
 | `outputs.background` | Per-bar shading behind the pane |
@@ -2584,8 +2584,9 @@ is the order the user sees, stated, rather than whichever study ran last.
 
 **A host draws what its surface has room for, and refuses what it does not.** The
 table above is what a program can carry, and a host's surface may be narrower: a
-chart pane with one grid, a band drawn in one colour for the whole run. The
-difference is allowed and invisible is not. A host that cannot draw a declaration
+chart pane with one grid, a band drawn in one colour for the whole run, and the
+same host may be narrower on an older version of its chart than on a newer one.
+The difference is allowed and invisible is not. A host that cannot draw a declaration
 refuses the program before any bar runs with OS6024, naming the declaration and
 its own reason, rather than drawing part of the study and saying nothing. A host
 that can draw all of it refuses nothing, which is why this is a host's refusal and

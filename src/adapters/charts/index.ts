@@ -16,9 +16,15 @@
  * What is mapped is the whole output surface: the declared inputs and the
  * settings dialog a chart generates from them, the plots with their styles and
  * scales, the bands between them, the horizontal levels, the pane's fixed range,
- * the markers, the candle and pane painting, the summary grid, the drawing
+ * the markers, the candle and pane painting, the summary grids, the drawing
  * objects a script mutates over time, the watched conditions, and the lifecycle
  * a read of another instrument fetches through.
+ *
+ * **Two of those depend on the chart the host states.** A band coloured per bar
+ * and a study with more than one grid need hooks only a newer chart has, so a
+ * host passes the chart library's own `VERSION` as
+ * `ChartAdapterOptions.chartVersion`, and without it such a study is refused
+ * with OS6024 rather than drawn in part. `capabilities.ts` has the versions.
  *
  * What a study can express and this descriptor has no field for is recorded,
  * with its reason, in `spec/chart-narrowings.json`, and each one is also named
@@ -41,6 +47,7 @@ export type {
   ChartCalcContext,
   ChartDescriptor,
   ChartFill,
+  ChartFillContext,
   ChartInput,
   ChartLevel,
   ChartLevelContext,
@@ -75,4 +82,5 @@ export type {
   ChartSurfaceContext,
   ChartTableOptions,
   ChartTablePosition,
+  ChartTableSpec,
 } from './surfaces.js';

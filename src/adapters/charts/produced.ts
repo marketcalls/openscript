@@ -32,7 +32,7 @@
  */
 import type { Value } from '../../core/engine/index.js';
 import type { ChartSettings } from './contract.js';
-import type { ChartDrawing, ChartGrid, ChartMarker } from './surfaces.js';
+import type { ChartDrawing, ChartMarker, ChartTableSpec } from './surfaces.js';
 
 /**
  * One declared alert's message channel, whole, as the run left it.
@@ -47,13 +47,14 @@ export type MessageColumn = readonly Value[];
 /** One run's non-numeric output, as the hooks that follow it read it. */
 export interface Produced {
   readonly markers: readonly ChartMarker[];
-  readonly table: ChartGrid | null;
+  /** Every declared grid, in declaration order; the single hook reads the first. */
+  readonly tables: readonly ChartTableSpec[];
   readonly drawings: readonly ChartDrawing[];
   /** One entry per declared alert, in the order `outputs.alerts` declares them. */
   readonly messages: readonly MessageColumn[];
 }
 
-const NOTHING: Produced = { markers: [], table: null, drawings: [], messages: [] };
+const NOTHING: Produced = { markers: [], tables: [], drawings: [], messages: [] };
 
 const runs = new WeakMap<ChartSettings, Produced>();
 

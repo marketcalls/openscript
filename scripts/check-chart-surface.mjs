@@ -23,9 +23,10 @@
  *
  * 2. **Does the descriptor carry as many of each as the program declares?** A
  *    smaller number is allowed only where the record states the limit and says
- *    why, and what the chart has no room for at all, a second grid or a band
- *    coloured per bar, is refused with OS6024 by a probe of its own in
- *    `lib/chart-refusals.mjs` rather than dropped.
+ *    why. What a chart before a stated version has no room for, a second grid
+ *    or a band coloured per bar, is built here as a host stating that version
+ *    would build it and read back as drawn, and is refused with OS6024 below
+ *    that version by a probe of its own in `lib/chart-refusals.mjs`.
  *
  * 3. **Does a setting the host stored reach the declaration it was written
  *    into?** An `input()` may be a declaration option, and until this check was
@@ -56,7 +57,8 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { CHART_ADAPTER_MODULE as ADAPTER_MODULE, CORE_MODULE, EMITTER_MODULE, fromRoot } from './lib/built.mjs';
-import { refusalProblems } from './lib/chart-refusals.mjs';
+import { gridsIn, hostFor, paintedBy, refusalProblems } from './lib/chart-refusals.mjs';
+import { fieldsIn } from './lib/declared-fields.mjs';
 
 const RECORD_PATH = 'spec/chart-narrowings.json';
 
@@ -79,6 +81,7 @@ a = plot(fast, "Fast", aqua, width = input(2, "Line width", min = 1, max = 10))
 b = plot(slow, "Slow", orange)
 plotCandles(open, high, low, close, "Bars", colorUp = lime, colorDown = red)
 fill(a, b, colorUp = aqua, colorDown = orange, opacity = 0.5)
+fill(a, b, colorUp = close > open ? lime : none, colorDown = close < open ? red : none)
 
 level(100, "Hundred", levelColor)
 level(50, "Fifty", silver)
@@ -91,6 +94,8 @@ if close < open
 first = table("First", 1, 2, position = "topLeft", bgColor = navy, borderWidth = 1)
 cell(first, 0, 0, "close", textColor = white)
 cell(first, 0, 1, text(close, 2))
+second = table("Second", 1, 1, position = "bottomRight")
+cell(second, 0, 0, "second")
 
 if close > open
     alert("up at " + text(close, 2), id = "up", title = "Went up")
@@ -137,6 +142,7 @@ const emitter = await import(EMITTER_MODULE);
 const adapter = await import(ADAPTER_MODULE);
 
 const record = JSON.parse(readFileSync(RECORD_PATH, 'utf8'));
+const HOST = hostFor(record);
 const problems = [];
 
 /** The fixture, compiled, with any refusal reported rather than worked around. */
@@ -155,36 +161,6 @@ function compiled() {
     );
   }
   return result.program;
-}
-
-/**
- * Every field name one declaration carries, nested objects included.
- *
- * A nested object is walked one level and named `ohlc.colorUp`, because that is
- * where a candle plot's four colours and a grid's three style fields live, and a
- * record that stopped at `ohlc` would let four fields be dropped behind a name
- * that was accounted for.
- */
-function fieldsOf(declaration, prefix = '') {
-  const names = new Set();
-  for (const [name, value] of Object.entries(declaration)) {
-    names.add(`${prefix}${name}`);
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      // An input reference is a value, not a nested declaration: `{ input: key }`
-      // is how a tunable field is written and its shape is not a field list.
-      if ('input' in value) continue;
-      for (const nested of fieldsOf(value, `${prefix}${name}.`)) names.add(nested);
-    }
-  }
-  return names;
-}
-
-/** Every field name an output list carries, over all of its declarations. */
-function fieldsIn(declared) {
-  const names = new Set();
-  const list = Array.isArray(declared) ? declared : declared === null ? [] : [declared];
-  for (const one of list) for (const name of fieldsOf(one)) names.add(name);
-  return names;
 }
 
 const program = compiled();
@@ -240,7 +216,7 @@ for (const [output, declared] of Object.entries(program.outputs)) {
 }
 
 // 2. The descriptor carries as many of each declaration as the program does.
-const descriptor = adapter.descriptorFor(program);
+const descriptor = adapter.descriptorFor(program, HOST);
 const data = bars(12);
 const settings = {};
 const store = {};
@@ -249,7 +225,12 @@ const ctx = {
   timezone: 'Etc/UTC',
   now: () => 1_748_736_000 + data.length * 60,
 };
-const values = descriptor.calc(data, settings, store, ctx);
+let values;
+try {
+  values = descriptor.calc(data, settings, store, ctx);
+} catch (thrown) {
+  fail(`the fixture study was refused on a host passing ${JSON.stringify(HOST)}, so nothing it declares was read back: ${thrown?.message ?? thrown}`);
+}
 const surface = { bars: data, values, settings };
 
 const limits = new Map((record.counts ?? []).map((one) => [one.output, one]));
@@ -258,7 +239,7 @@ const counted = {
   fills: (descriptor.fills ?? []).length,
   levels: (descriptor.levels?.({ ...settings, bars: data, values }) ?? []).length,
   alerts: (descriptor.alerts ?? []).length,
-  tables: descriptor.table === undefined || descriptor.table(surface) === null ? 0 : 1,
+  tables: gridsIn(descriptor, surface).length,
 };
 
 for (const [output, carried] of Object.entries(counted)) {
@@ -288,7 +269,7 @@ for (const output of limits.keys()) {
     problems.push(`${RECORD_PATH} limits outputs.${output}, which this check does not count.`);
   }
 }
-problems.push(...refusalProblems({ core, emitter, adapter, record, recordPath: RECORD_PATH, bars: data, ctx }));
+problems.push(...refusalProblems({ core, emitter, adapter, record, recordPath: RECORD_PATH, bars: data, ctx, host: HOST }));
 
 /**
  * 3. What was carried is read back out of a run.
@@ -312,6 +293,9 @@ const grid = descriptor.table?.(surface);
 reading('the grid the first declaration asks for', grid?.rows.length, 1);
 reading('its declared column count', grid?.rows[0]?.length, 2);
 reading('a cell the script wrote', grid?.rows[0]?.[0]?.text, 'close');
+reading('a cell the second grid was written', gridsIn(descriptor, surface)[1]?.rows[0]?.[0]?.text, 'second');
+const banded = [...paintedBy(descriptor.fills?.[1], surface)].map((one) => (/, 0\)$/.test(one) ? 'unpainted' : 'painted'));
+reading('the second band, computed where a bar rose and absent where it fell', banded.sort().join(' and '), 'painted and unpainted');
 
 const texts = new Set((descriptor.markers?.(surface) ?? []).map((one) => one.text));
 for (const wanted of ['UP', 'DOWN']) {
@@ -389,7 +373,7 @@ for (const member of Object.keys(descriptor)) {
   );
 }
 
-const tuned = adapter.descriptorFor(program, { settings: STORED });
+const tuned = adapter.descriptorFor(program, { ...HOST, settings: STORED });
 reading(
   'a plot width the script wrote as an input(), with nothing stored',
   descriptor.plots[0]?.style?.lineWidth,
@@ -430,7 +414,7 @@ if (levelsWith({})[0]?.color === STORED.levelColor) {
 const WIDTH_BOUND = 10;
 for (const forbidden of [99, 'wide', null]) {
   const held = { 'Line width': forbidden };
-  const shape = adapter.descriptorFor(program, { settings: held });
+  const shape = adapter.descriptorFor(program, { ...HOST, settings: held });
   const width = shape.plots[0]?.style?.lineWidth;
   if (width !== DECLARED_WIDTH) {
     problems.push(
