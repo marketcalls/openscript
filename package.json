@@ -1,6 +1,6 @@
 {
   "name": "openalgo-script",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "description": "An open trading language. Write a study or a strategy once, plot it, backtest it, trade it.",
   "keywords": [
     "trading",
