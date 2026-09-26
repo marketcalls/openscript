@@ -242,7 +242,11 @@ recomputing it; explicitly live state is retained. Drawing values are published
 on updates, while signals, alerts and orders follow the confirmation policy.
 
 The [chart adapter](./src/adapters/charts/index.ts) maps study outputs into the
-host's chart. The [backtest driver](./src/core/backtest/drive.ts) supplies a
+host's chart. A host passes the chart library's own version as `chartVersion`,
+and the adapter draws what that version has room for: a band coloured per bar
+and every declared grid need a newer chart, and on an older one, or when no
+version is stated, such a study is refused with OS6024 rather than drawn in
+part. The [backtest driver](./src/core/backtest/drive.ts) supplies a
 simulated order destination and records frames, fills, orders and the report.
 [Replay and rerun](./src/core/backtest/replay.ts) let a stored result be checked
 again. The host owns data access, rendering, persistence and order routing;

@@ -42,6 +42,11 @@ export function levelKey(index: number): string {
   return `openscript:level:${index}`;
 }
 
+/** The key one side of a band's computed colour travels under. */
+export function bandColourKey(band: number, side: 'up' | 'down'): string {
+  return `openscript:fill:${band}:${side}`;
+}
+
 /** The two keys a per-bar colour travels under. */
 export function colourKeys(key: string): { readonly rgb: string; readonly alpha: string } {
   return { rgb: `${key}:rgb`, alpha: `${key}:alpha` };

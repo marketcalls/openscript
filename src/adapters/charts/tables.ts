@@ -27,13 +27,17 @@
  * placed into it, which is what `language.md` 6.7 asks for from the other
  * direction: a cell nothing was written into is blank, never a zero.
  *
- * **A chart pane holds one grid and the language declares as many as it likes.**
- * The descriptor has one `table` hook, and merging two grids into it would put
- * cells somewhere the script never asked for. So a program declaring a second
- * grid never reaches this file: `undrawable.ts` refuses it before any bar runs,
- * with OS6024, and this reads the one grid a program that runs can have.
- * `spec/chart-narrowings.json` records the refusal and
- * `scripts/check-chart-surface.mjs` proves it with a study that declares two.
+ * **The language declares as many grids as it likes, and a chart with the list
+ * of grids draws them all** (`capabilities.ts` says which chart has it). The
+ * list holds each grid under an id the chart keeps it by, and every declared
+ * grid is built for it here under its declaration's key. The single `table`
+ * hook stays beside the list with the first grid in it, because a chart
+ * without the list reads that one. Merging two grids into the single hook
+ * would put cells somewhere the script never asked for, so on a chart without
+ * the list a program declaring a second grid never reaches this file:
+ * `undrawable.ts` refuses it before any bar runs, with OS6024.
+ * `spec/chart-narrowings.json` records both halves and
+ * `scripts/check-chart-surface.mjs` proves both with a study that declares two.
  */
 import type { CompiledProgram, Grid as DeclaredGrid } from '../../core/emit/index.js';
 import type { Grid, GridCell } from '../../core/engine/index.js';
@@ -45,6 +49,7 @@ import type {
   ChartCellAlign,
   ChartGrid,
   ChartTablePosition,
+  ChartTableSpec,
 } from './surfaces.js';
 
 /** The language's four corners, in the chart's own words. */
@@ -58,22 +63,34 @@ const CORNERS: Readonly<Record<string, ChartTablePosition>> = {
 const ALIGNMENTS: readonly string[] = ['left', 'center', 'right'];
 
 /**
- * The grid a chart draws, from the declaration and the engine's buffer.
+ * Every grid a chart draws, from the declarations and the engine's buffers.
  *
- * The buffer is paired with the declaration by the key both of them carry
+ * Each buffer is paired with its declaration by the key both of them carry
  * rather than by position. The engine reads its grids in declaration order, so
  * the two agree today, and a pairing by position is one reordering away from
  * drawing one grid's cells into another grid's shape, which would be a wrong
  * table that looks like a right one.
+ *
+ * The key is the id as well. The compiler writes one per declaration and never
+ * an empty one, and it does not move between recomputes, which is what lets the
+ * chart keep a grid rather than build it again on every tick.
  */
-export function buildTable(
+export function buildTables(
   program: CompiledProgram,
   lookup: InputLookup,
   written: readonly Grid[],
-): ChartGrid | null {
-  const declared = program.outputs.tables[0];
-  if (declared === undefined) return null;
-  return oneTable(declared, lookup, written.find((one) => one.key === declared.key));
+): readonly ChartTableSpec[] {
+  return program.outputs.tables.map((declared) => ({
+    id: declared.key,
+    ...oneTable(declared, lookup, written.find((one) => one.key === declared.key)),
+  }));
+}
+
+/** The first grid alone, for the single hook a chart without the list reads. */
+export function firstGrid(tables: readonly ChartTableSpec[]): ChartGrid | null {
+  const first = tables[0];
+  if (first === undefined) return null;
+  return { rows: first.rows, ...(first.options === undefined ? {} : { options: first.options }) };
 }
 
 function oneTable(

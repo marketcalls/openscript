@@ -4975,3 +4975,59 @@ the importer relies on are listed in its page rather than proved.
 `scripts/check-raises.mjs`, `scripts/check-examples-compile.mjs`,
 `scripts/lib/example-import.mjs`, `scripts/lib/catalogue-page.mjs`,
 `tests/importer/`, `docs/writing/importing-a-script.md`.
+
+## 75. The chart adapter draws a band's colour per bar and every declared grid, on a chart the host states has the hooks
+
+**The question.** Decision 68 refused two things with OS6024 because the chart
+had no place for them: a second grid and a band whose colour is computed per
+bar. The chart library has since added both places, a list of grids with a
+stable id each and a per-bar colour callback on a band, in the same version,
+2.5.4. The adapter's peer range starts at 2.4.0, and a chart ignores a hook it
+does not know, so drawing through either on an older chart is the silent drop
+decision 68 ended. The adapter does not import the library, so it cannot ask
+which one it is handed.
+
+**The decision.** `ChartAdapterOptions.chartVersion`, which a host sets to the
+library's own exported `VERSION`. From 2.5.4 on, the descriptor carries a
+band's computed colours through the band's colour callback and every declared
+grid through the list, keyed by the declaration's key, with the single `table`
+hook kept for the first grid. Below it, and when nothing is stated or what is
+stated cannot be read as a version, both are refused with OS6024 exactly as
+before, and the refusal's own sentence says which version the host stated.
+`src/adapters/charts/capabilities.ts` holds the versions and the rule.
+
+**Why a version and not a switch per hook.** A switch is a fact about the chart
+the host has to look up and keep true through every upgrade and downgrade; the
+version is the chart the host installed, it is already in hand, and a hook the
+adapter learns to read later needs nothing new from any host. A prerelease
+orders before its release, so `2.5.4-rc.1` reads as a chart without what 2.5.4
+added.
+
+**How a bar's band colour is chosen.** The side is decided as the chart decides
+it, the first plot at or above the second, so the colour answered is the colour
+of the run the chart draws that bar in. An absent computed colour is a
+transparent colour rather than no answer, because no answer hands the bar to
+the chart's default for that side, and an absent colour is how
+`docs/visuals/fills.md` teaches a band to switch itself off. A side the script
+did not compute answers nothing, so the chart draws the colour declared for it.
+The band's `opacity` is applied once, by the chart, to a computed colour as to
+a constant one, and the twelve percent fade of a band with no colour does not
+apply to a band whose colour is computed.
+
+**What this does not settle.** A band that computes one side and names no colour
+for the other draws that side in the chart's own default, which is also what a
+band with one constant side does. Whether such a side should be unpainted
+instead is the question the second engine's fills channel reports without
+deciding, and it is left open for both.
+
+**Edits.** `src/adapters/charts/capabilities.ts` (new), `undrawable.ts`,
+`fills.ts`, `columns.ts`, `tables.ts`, `descriptor.ts`, `produced.ts`,
+`contract.ts`, `surfaces.ts`, `run.ts` and `index.ts`, with `columns.ts`'s row
+of `spec/number-text-exceptions.json` counting the band colour key beside the
+level key; `spec/chart-narrowings.json`, where the
+band's two channels become carried and each refusal names the version it is
+drawn from; `scripts/check-chart-surface.mjs`, `scripts/lib/chart-refusals.mjs`
+and `scripts/lib/declared-fields.mjs` (new), which prove each refusal on both
+sides of that version; `compiled-program.md` 11; `docs/visuals/fills.md`,
+`tables.md` and `colors.md`; `tests/adapters/charts/bands.test.ts` and
+`grids.test.ts` (new) and `undrawable.test.ts`.

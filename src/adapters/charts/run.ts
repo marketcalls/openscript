@@ -38,6 +38,7 @@ import type { CompiledProgram } from '../../core/emit/index.js';
 import type { SourceFile } from '../../core/index.js';
 import { hostBar, hostNow, stateFor } from './bars.js';
 import type { ChartBar, ChartCalcContext, ChartSettings, ChartStore } from './contract.js';
+import { capabilitiesOf } from './capabilities.js';
 import { refused, stopped } from './errors.js';
 import { undrawable } from './undrawable.js';
 import { stationIn, stationOf } from './requests.js';
@@ -60,6 +61,29 @@ export interface ChartAdapterOptions {
   readonly id?: string;
   /** The category a picker groups the study under, when `meta.group` is empty. */
   readonly category?: string;
+  /**
+   * The chart library's own version: the `VERSION` string it exports, which a
+   * host that imports the chart already holds, passed on as
+   * `descriptorFor(program, { chartVersion: VERSION })`.
+   *
+   * It says which of the descriptor's hooks the chart this descriptor is
+   * registered with will read. Two arrived after the oldest chart the peer
+   * range accepts: a band's per-bar colour and the list of grids. From 2.5.4
+   * on, a band whose colour the script computes is drawn bar by bar and every
+   * declared grid is drawn. Before it, or when nothing is stated, the adapter
+   * cannot tell whether the chart will read either hook, and a chart that
+   * ignores one draws a band in its own default colours or the first grid
+   * alone, with nothing said. So such a program is refused before any bar runs
+   * with OS6024, which is what a host that states nothing got before this
+   * option existed.
+   *
+   * The version rather than a switch per hook, because it is one fact the
+   * host already holds, it moves with the chart the host actually installed,
+   * and a hook the adapter learns to read later needs nothing new from any
+   * host. `capabilities.ts` has the rule, prereleases and unreadable strings
+   * included.
+   */
+  readonly chartVersion?: string;
   /**
    * What the host has stored for this study's inputs, for the declared shape.
    *
@@ -338,7 +362,7 @@ function start(
 
   // What this chart has no room for is refused before the engine is asked,
   // because a study drawn without it is a study that looks broken.
-  const narrower = undrawable(program);
+  const narrower = undrawable(program, capabilitiesOf(options.chartVersion));
   if (narrower !== undefined) throw refused(narrower);
 
   const loaded = load(program, {

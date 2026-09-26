@@ -263,12 +263,17 @@ absent condition takes the false branch, so `squeezed` is effectively off there.
 It does not matter: both ends are absent too, so nothing would be painted
 anyway.
 
-**A host may not have room for a colour per bar.** The language carries one, and
-the chart adapter in this repository does not: its band takes one colour for the
-whole run, so it refuses a program whose band colour is computed per bar before
-any bar runs, with OS6024, rather than drawing the band in a colour the script
-did not choose. Another host may draw it. On this one, switch the band off by
-plotting its edges absent instead, as in the session example above.
+**A colour per bar needs a chart that can take one.** The language carries a
+band's colour per bar, and the chart adapter in this repository draws it bar by
+bar on a chart from version 2.5.4 on: each bar is shaded in the colour the
+script computed there for the side the band is on, an absent colour leaves that
+bar unshaded, and `opacity` dims the computed colour exactly as it dims a
+constant one. An older chart's band takes one colour for each side for the
+whole run, so on one, or on a host that does not say which chart it has, the
+adapter refuses a program whose band colour is computed per bar before any bar
+runs, with OS6024, rather than drawing the band in a colour the script did not
+choose. If your host refuses it, switch the band off by plotting its edges
+absent instead, as in the session example above, which every chart draws.
 
 ---
 
@@ -366,6 +371,7 @@ carry `offset = 26`, and the region moves with them.
 | `colorUp` on the wrong side | A picture that says the opposite, convincingly | `colorUp` is where the **first** argument is above the second |
 | `fade` on the colour and a raised `opacity` | A band nobody can see, and two numbers to guess between | Use one or the other |
 | Wrapping `fill` in an `if` | OS3006 | Give the colour `none` on the off bars |
+| OS6024 naming a band's colour computed per bar | The host's chart takes one colour per side for the whole run, or the host did not say which chart it has | Run it on a host with a newer chart, or make the band's edges absent on the off bars instead |
 | Filling to a `level` | There is no argument for it | Plot the constant, at full transparency if it should not show |
 | One end on the price pane, the other in the study's pane | Not a region | Give both plots and the fill the same `overlay` |
 | Shading between two unrelated series | Invents a quantity that means nothing | Only fill where the gap is itself a fact |

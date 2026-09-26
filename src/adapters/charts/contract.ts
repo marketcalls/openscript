@@ -32,7 +32,7 @@
  * What is declared is the whole output surface: the inputs and the settings
  * dialog a chart generates from them, the plots with their styles and scales,
  * the bands between them, the horizontal levels, the pane's fixed range, the
- * markers, the candle and pane painting, the summary grid, the drawing objects,
+ * markers, the candle and pane painting, the summary grids, the drawing objects,
  * the watched conditions, and the lifecycle a read of another instrument fetches
  * through.
  *
@@ -56,6 +56,7 @@ import type {
   ChartGrid,
   ChartMarker,
   ChartSurfaceContext,
+  ChartTableSpec,
 } from './surfaces.js';
 
 /** One bar as the chart holds it. Its time is UTC seconds, not milliseconds. */
@@ -223,6 +224,20 @@ export interface ChartPlot {
   colorParts?(ctx: ChartColorContext): ChartBarColor | undefined;
 }
 
+/**
+ * What a band's per-bar colour callback is handed, for one bar.
+ *
+ * `a` and `b` are the two columns the band is drawn between, read on that bar,
+ * and `null` where either has no value, which is a bar the band is not drawn on.
+ */
+export interface ChartFillContext {
+  readonly index: number;
+  readonly a: number | null;
+  readonly b: number | null;
+  readonly values: ChartValues;
+  readonly settings: ChartSettings;
+}
+
 export interface ChartFill {
   readonly between: readonly [string, string];
   readonly colorUp?: string;
@@ -231,6 +246,15 @@ export interface ChartFill {
   readonly colorDownKey?: string;
   readonly opacity?: number;
   readonly overlay?: boolean;
+  /**
+   * The band's colour on one bar, for a band whose colour the script computes.
+   *
+   * Present only on such a band, and only where the host states a chart that
+   * has the callback (`capabilities.ts`). Nothing where that bar's side is not
+   * computed per bar, which leaves the chart drawing the band's own colour for
+   * that side.
+   */
+  colorBy?(ctx: ChartFillContext): string | undefined;
 }
 
 export interface ChartLevel {
@@ -305,8 +329,18 @@ export interface ChartDescriptor {
   background?(ctx: ChartSurfaceContext): readonly (string | null)[];
   /** Every marker the last calculation produced, oldest bar first. */
   markers?(ctx: ChartSurfaceContext): readonly ChartMarker[];
-  /** The declared grid as the last executed bar left it, or nothing. */
+  /** The first declared grid as the last executed bar left it, or nothing. */
   table?(ctx: ChartSurfaceContext): ChartGrid | null;
+  /**
+   * Every declared grid as the last executed bar left it, each under its
+   * declaration's key.
+   *
+   * A chart that has this hook reads it in place of `table`, and one that does
+   * not reads `table` and draws the first grid. So it is present only where the
+   * host states a chart that has it (`capabilities.ts`), and a second grid is
+   * refused on a chart that does not.
+   */
+  tables?(ctx: ChartSurfaceContext): readonly ChartTableSpec[];
   /** Every drawing object the script currently holds, oldest first. */
   draws?(ctx: ChartSurfaceContext): readonly ChartDrawing[];
   /**
