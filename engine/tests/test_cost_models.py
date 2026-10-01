@@ -167,5 +167,76 @@ class WhatTheRefusalCarries(unittest.TestCase):
         self.assertIsNone(settings_problem(self.schedule("declaration"), declared, Contract()))
 
 
+class TwoSlippagesAtOnce(Cases):
+    """A supplied schedule's slippage and the declaration's own, ``errors.md`` OS6026.
+
+    The venue worsens a fill by one slippage, and where a schedule is supplied
+    it is the schedule's. A declaration stating two ticks beside a schedule
+    carrying one was filled at one with nothing said, so the script's own
+    statement of how bad its fills are did not happen. Both engines refuse it,
+    after OS6023 and before the schedule's own problems.
+    """
+
+    def answer_under(self, costs, channels, **declared):
+        return answer_for(
+            self.case(**{"case.json": asserting(*channels), "backtest.json": backtest(costs)}),
+            envelope(buying(**declared)),
+        )
+
+    def test_a_supplied_slippage_that_replaces_a_different_declared_one_is_refused(self):
+        # Catches an engine that applies the schedule's figure silently, which is
+        # the defect, one that applies the declaration's silently, and one that
+        # adds the two.
+        found = self.answer_under({**SUPPLIED, "slippageTicks": 1.0}, ("diagnostics", "orders"), slippage=2)
+
+        self.assertEqual([row["code"] for row in found["channels"]["diagnostics"]], ["OS6026"])
+        self.assertEqual(found["channels"]["orders"], [])
+
+    def test_a_schedule_carrying_no_slippage_still_replaces_a_declared_one(self):
+        # Zero ticks is a statement that fills cost nothing extra, which is a
+        # different number from the declaration's two.
+        found = self.answer_under(SUPPLIED, ("diagnostics",), slippage=2)
+
+        self.assertEqual([row["code"] for row in found["channels"]["diagnostics"]], ["OS6026"])
+
+    def test_the_same_number_stated_twice_is_one_statement(self):
+        # The other side, and the reason the rule cannot refuse every schedule
+        # beside a declared slippage: a host supplying the rest of the costs for a
+        # script that states its own slippage carries the same figure and runs.
+        found = self.answer_under({**SUPPLIED, "slippageTicks": 2.0}, ("diagnostics", "trades"), slippage=2)
+
+        self.assertEqual(found["channels"]["diagnostics"], [])
+        self.assertEqual(found["channels"]["trades"][0]["charges"], 50.0)
+
+    def test_a_declaration_stating_none_leaves_the_schedule_to_stand(self):
+        found = self.answer_under({**SUPPLIED, "slippageTicks": 3.0}, ("diagnostics",))
+
+        self.assertEqual(found["channels"]["diagnostics"], [])
+
+    def test_two_cost_models_are_named_before_two_slippages(self):
+        # A run stating a commission and a slippage beside a schedule is first of
+        # all two cost models; a reader told only about the slippage would correct
+        # it and meet OS6023 next.
+        found = self.answer_under(SUPPLIED, ("diagnostics",), commission=COMMISSION, slippage=2)
+
+        self.assertEqual([row["code"] for row in found["channels"]["diagnostics"]], ["OS6023"])
+
+    def test_the_refusal_names_both_figures(self):
+        declared = {"commission": 0, "commissionType": "perTrade", "slippage": 2}
+        schedule = ChargeSchedule(
+            currency="CUR",
+            digits=2,
+            slippage_ticks=1.0,
+            lines=(ChargeLine(name="fee", base="order", rate=50),),
+            source="supplied",
+        )
+
+        refused = settings_problem(schedule, declared, Contract())
+
+        self.assertEqual(refused.code, "OS6026")
+        self.assertEqual(refused.values["supplied"], 1.0)
+        self.assertEqual(refused.values["declared"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()

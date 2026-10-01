@@ -5031,3 +5031,38 @@ and `scripts/lib/declared-fields.mjs` (new), which prove each refusal on both
 sides of that version; `compiled-program.md` 11; `docs/visuals/fills.md`,
 `tables.md` and `colors.md`; `tests/adapters/charts/bands.test.ts` and
 `grids.test.ts` (new) and `undrawable.test.ts`.
+
+## 76. A supplied schedule whose slippage differs from a declared one is OS6026
+
+**The question.** A run carries one cost model, and decision 61 put a supplied
+charge schedule in `backtest.json` beside the declaration's own commission,
+with the two refused together as OS6023. Slippage was left out of that rule: the
+simulated destination worsens a fill by `schedule.slippageTicks` wherever a
+schedule is supplied, so a declaration stating two ticks beside a schedule
+carrying one was filled at one with nothing said. The design review for the
+first host's backtest measured exactly that (a fill at the open plus 0.05 where
+the script stated 0.10). Is the precedence a rule to document, or a refusal?
+
+**The decision.** A refusal, OS6026, "Two slippages are stated at once",
+raised before the first bar in both engines, after OS6023 and before the
+schedule's own problems. It fires only where the two figures differ: a
+declaration stating none leaves the schedule's figure to stand, and the same
+figure stated in both is one statement and runs.
+
+**Why not refuse every schedule beside a declared slippage**, which is the
+shape OS6023 has. A commission and a schedule are two descriptions of the same
+money and cannot be reconciled; a slippage is one number, and a host that
+supplies the costs for a script stating its own slippage has a clean way to
+honour it, which is to carry that number. Refusing the pair outright would
+leave such a host no cost model at all for that script, and the first host's
+design already does the honest thing (it carries the declared figure). What is
+refused is the one shape that loses a figure silently.
+
+**Why not document the precedence instead.** A precedence rule is a sentence a
+reader has to have read before the run, and the figure it drops is the script's
+own statement about its fills. A refusal costs one run; a silent replacement
+costs a report that looks right.
+
+**Edits.** `errors.md` and `errors.json` OS6026; `src/core/backtest/settings.ts`;
+`engine/openscript/adapter/reporting.py`; `docs/strategies/costs-and-fills.md`;
+`tests/backtest/settings.test.ts` and `engine/tests/test_cost_models.py`.

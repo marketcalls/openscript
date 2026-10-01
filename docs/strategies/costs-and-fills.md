@@ -144,6 +144,16 @@ one is worth. One tick on an instrument that ticks at five paise is a different
 cost from one tick on an instrument that ticks at one paisa, and the same number
 is right for both in tick terms.
 
+**When the platform supplies the costs.** A platform may hand a backtest a
+charge schedule of its own, and a schedule carries a slippage in ticks beside
+its charge lines. Where one is supplied, its slippage is the one every fill is
+worsened by. So a script that states a slippage of its own and a schedule that
+carries a different figure are refused before the first bar, OS6026, rather
+than the script's figure being dropped with nothing said. The same figure in
+both is one statement and runs, and a script that leaves `slippage` at zero
+leaves the platform's figure to stand. A declared commission beside a supplied
+schedule is refused the same way, OS6023, because both describe the same money.
+
 How to choose the number, in order of how much it matters:
 
 | Ask | Then |

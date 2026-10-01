@@ -187,11 +187,11 @@ up is not renumbered.
 | OS3xxx | Arguments | A call or an option is wrong at the call site. | error | 26 |
 | OS4xxx | Runtime | A bar produced a value the engine cannot act on. | error | 13 |
 | OS5xxx | Limits | A budget was exhausted: loops, memory, size or time. | error | 10 |
-| OS6xxx | Data | Bars, instruments, timeframes and the host's answers to requests. | error | 25 |
+| OS6xxx | Data | Bars, instruments, timeframes and the host's answers to requests. | error | 26 |
 | OS7xxx | Orders | An order could not be placed as written. | error | 19 |
 | OS8xxx | Warnings | The script compiles and runs, and something in it is probably not meant. | warning | 19 |
 | OS9xxx | Import | A script written in another chart language could not be translated as written, or was translated with a stated difference. | error or warning | 12 |
-| | | | **Total** | **173** |
+| | | | **Total** | **174** |
 
 Ranges OS1xxx to OS7xxx are errors. OS8xxx is warnings, and the split is by
 kind rather than by severity precisely so that a reader can tell from a bare code
@@ -3830,6 +3830,36 @@ host input:
   bar 41  09:10
   bar 42  09:15
   bar 43  09:20
+```
+
+
+### OS6026 Two slippages are stated at once
+
+Severity error. Stage host. Since language version 1. Reference language.md 13.3; stdlib.md 17.1. Test `tests/backtest/settings.test.ts`.
+
+**Host input.** The example below is the input that fails and the input that passes rather than a script, because this code is about what the engine was handed and not about what anybody wrote.
+
+**Message.** `A charge schedule was supplied with a slippage of {supplied} ticks, and the declaration states a slippage of {declared} ticks.`
+
+- `{supplied}` is the slippage the supplied schedule carries, in ticks.
+- `{declared}` is the slippage the declaration states, in ticks.
+
+**Cause.** The declaration's slippage is the script's own statement of how much worse than the bar every fill is, and a supplied schedule carries the platform's. A backtest worsens a fill by one of them, and where a schedule is supplied it is the schedule's, so a declared slippage that differs from the schedule's would simply not happen and nothing would say so. The same figure stated in both is one statement, and a declaration that states none leaves the schedule's to stand; two different figures are refused before the first bar rather than reconciled behind the reader.
+
+**Fix.** Carry the declaration's slippage in the schedule, or leave the declaration's slippage at its default of zero and let the schedule carry the figure, or supply no schedule and let the declaration's commission and slippage stand.
+
+Before:
+
+```
+declaration: slippage 2 ticks
+host: charge schedule supplied, slippage 1 tick
+```
+
+After:
+
+```
+declaration: slippage 2 ticks
+host: charge schedule supplied, slippage 2 ticks
 ```
 ---
 

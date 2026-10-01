@@ -17,10 +17,11 @@
  * `fillOn` is deliberately not here: it is the declaration's, and the
  * declaration is the program.
  *
- * Two refusals live in this module when the behaviour lands. A setting the run
- * cannot be carried out under is OS6021, and a supplied schedule beside a
- * declared commission that is not the default is OS6023, because two cost
- * models stated at once is a number nobody can explain afterwards.
+ * Three refusals live in this module. A setting the run cannot be carried out
+ * under is OS6021, a supplied schedule beside a declared commission that is not
+ * the default is OS6023, because two cost models stated at once is a number
+ * nobody can explain afterwards, and a supplied schedule whose slippage differs
+ * from a declared one is OS6026, for the same reason.
  */
 import { scheduleFromDeclaration, scheduleProblem } from '../accounting/index.js';
 import type { ChargeSchedule, Contract } from '../accounting/index.js';
@@ -151,13 +152,18 @@ export function settingsFor(
 /**
  * What a run cannot be carried out under, before its first bar.
  *
- * Four questions, and every one of them is a figure nobody could explain
+ * Five questions, and every one of them is a figure nobody could explain
  * afterwards rather than a tidiness rule:
  *
  * - **Two cost models at once**, OS6023. A supplied schedule and a declared
  *   commission describe the same money. Applied together they charge it twice
  *   and applied one at a time they charge whichever an engine preferred, which
  *   is a rule nobody wrote down.
+ * - **Two slippages at once**, OS6026. The venue applies the schedule's
+ *   slippage where a schedule is supplied, so a declared slippage that differs
+ *   from it was dropped with nothing said. Asked after OS6023, because a run
+ *   stating both a commission and a slippage beside a schedule is first of all
+ *   two cost models.
  * - **A schedule that cannot be evaluated**, OS6021, which `scheduleProblem`
  *   decides, because the schedule is the money layer's and the rule for it is
  *   written once, there. **Whichever schedule the run will be charged under**,
@@ -184,6 +190,22 @@ export function checkSettings(
     return diagnosticFor('OS6023', NO_POSITION, {
       commission: declared.commission,
       commissionType: declared.commissionType,
+    });
+  }
+
+  // The venue worsens a fill by the schedule's slippage where one is supplied,
+  // so a declared slippage that differs from it would simply not happen. The
+  // same figure in both is one statement, and a declaration stating none
+  // leaves the schedule's to stand.
+  if (
+    settings.costs !== null &&
+    declared.isStrategy &&
+    declared.slippage !== 0 &&
+    settings.costs.slippageTicks !== declared.slippage
+  ) {
+    return diagnosticFor('OS6026', NO_POSITION, {
+      supplied: settings.costs.slippageTicks,
+      declared: declared.slippage,
     });
   }
 

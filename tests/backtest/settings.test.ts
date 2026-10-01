@@ -22,8 +22,8 @@ import { SUPPLIED, inAndOut, rising, runSettings } from './support.js';
 const BARS = rising(8);
 
 /** The declaration a program states, read the way the driver reads one. */
-function declared(commission: number): RunDeclaration {
-  return declarationOf(inAndOut({ commission }));
+function declared(commission: number, slippage = 0): RunDeclaration {
+  return declarationOf(inAndOut({ commission, slippage }));
 }
 
 /**
@@ -128,4 +128,66 @@ test('a run under refused settings produces no record', () => {
   // Two fills at fifteen each, which is the supplied schedule and not the
   // declaration's.
   assert.equal(allowed.record.report.summary.charges, 30);
+});
+
+/**
+ * A supplied schedule whose slippage replaces a different declared slippage is
+ * refused.
+ *
+ * The venue worsens a fill by one slippage, and when a schedule is supplied it
+ * is the schedule's (`drive.ts`). A declaration stating two ticks beside a
+ * schedule carrying one was filled at one with nothing said, so the script's
+ * own statement of how bad its fills are simply did not happen. Catches an
+ * engine that applies the schedule's figure silently, one that applies the
+ * declaration's silently, and one that adds the two.
+ */
+test('a supplied slippage that replaces a different declared slippage is refused', () => {
+  const refused = checkSettings(runSettings({ costs: { ...SUPPLIED, slippageTicks: 1 } }), declared(0, 2));
+  assert.equal(refused?.code, 'OS6026');
+  assert.equal(refused?.span.line, 0);
+  assert.equal(refused?.span.column, 0);
+  // A schedule that carries no slippage is still a statement that fills cost
+  // nothing extra, which is a different number from the declaration's two.
+  assert.equal(
+    checkSettings(runSettings({ costs: SUPPLIED }), declared(0, 2))?.code,
+    'OS6026',
+  );
+});
+
+/**
+ * The same number stated twice is one statement, and a declaration stating
+ * none leaves the schedule's to stand.
+ *
+ * The refusal is about the declared figure being replaced, not about a
+ * schedule existing: a rule that refused every schedule beside a declared
+ * slippage would leave a host no way to supply the rest of the costs for a
+ * script that states its own slippage.
+ */
+test('a supplied slippage equal to the declared one, or beside none, is carried out', () => {
+  assert.equal(checkSettings(runSettings({ costs: { ...SUPPLIED, slippageTicks: 2 } }), declared(0, 2)), null);
+  assert.equal(checkSettings(runSettings({ costs: { ...SUPPLIED, slippageTicks: 3 } }), declared(0, 0)), null);
+});
+
+/**
+ * Two cost models are named before two slippages.
+ *
+ * Order, which is not arbitrary: a run stating both a commission and a
+ * slippage beside a schedule is first of all two cost models, and a reader
+ * told only about the slippage would correct it and meet OS6023 next.
+ */
+test('two cost models are refused before two slippages', () => {
+  const refused = checkSettings(runSettings({ costs: SUPPLIED }), declared(20, 2));
+  assert.equal(refused?.code, 'OS6023');
+});
+
+/** And the refusal stops the run before a bar executes, like every other one. */
+test('a run under a replaced slippage produces no record', () => {
+  const refused = backtest(
+    inAndOut({ slippage: 2 }),
+    BARS,
+    runSettings({ costs: { ...SUPPLIED, slippageTicks: 1 } }),
+  );
+  assert.equal(refused.ok, false);
+  if (refused.ok) return;
+  assert.equal(refused.diagnostic.code, 'OS6026');
 });

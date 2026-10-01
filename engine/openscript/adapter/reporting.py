@@ -139,7 +139,7 @@ def settings_problem(
 ) -> Optional[Diagnostic]:
     """What this run cannot be carried out under, asked before its first bar.
 
-    Two questions, in this order, and each of them is a figure nobody could
+    Four questions, in this order, and each of them is a figure nobody could
     explain afterwards rather than a tidiness rule.
 
     **Two cost models at once, OS6023.** The declaration's commission is the
@@ -151,6 +151,12 @@ def settings_problem(
     is refused here rather than reconciled behind the reader. Asked first,
     because a schedule that is also unusable in some second way would otherwise
     be reported as that, and the reader would correct the wrong half.
+
+    **Two slippages at once, OS6026.** A backtest worsens a fill by the
+    schedule's slippage where a schedule is supplied, so a declared slippage that
+    differs from it was dropped with nothing said. Asked after OS6023, because a
+    run stating both a commission and a slippage beside a schedule is first of
+    all two cost models.
 
     **A schedule that cannot be evaluated, OS6021**, which ``schedule_problem``
     decides, because the schedule is the money layer's and the rule for it is
@@ -185,6 +191,13 @@ def settings_problem(
             commission=declared["commission"],
             commissionType=declared["commissionType"],
         )
+    # The venue worsens a fill by the schedule's slippage where one is supplied,
+    # so a declared slippage that differs from it would simply not happen. The
+    # same figure in both is one statement, and a declaration stating none leaves
+    # the schedule's to stand.
+    stated = declared.get("slippage", 0)
+    if schedule.source == SUPPLIED and stated != 0 and schedule.slippage_ticks != stated:
+        return failure("OS6026", supplied=schedule.slippage_ticks, declared=stated)
     problem = schedule_problem(schedule, contract)
     if problem is not None:
         setting, reason = problem
