@@ -99,7 +99,6 @@ export function venueFor(
     // applies it. Ticks, against the instrument's tick size.
     slippageTicks: declared.slippage,
     fillOn: declared.fillOn,
-    qtyType: declared.qtyType,
   });
 }
 

@@ -176,7 +176,6 @@ export function backtest(
         fill: settings.fill,
         slippageTicks: schedule.slippageTicks,
         fillOn: declared.fillOn,
-        qtyType: declared.qtyType,
       }),
     ),
   );

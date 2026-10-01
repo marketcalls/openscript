@@ -51,66 +51,8 @@ import type { OrderFrame, OrderIntent, OrderSide, RoutedEffect } from '../engine
 import type { RecordedBar } from './record.js';
 import { testResting } from './resting.js';
 import type { RestingOrder } from './resting.js';
-import type { FillPolicy } from './settings.js';
-
-/**
- * What this destination does to one order, at one boundary.
- *
- * Four words reaching every status of `stdlib.md` 17.7 a host may send. `fill`
- * carries the cumulative quantity, so one word covers the acknowledgement
- * before anything has traded, a fill of part of the order and a fill of the
- * whole of it: `working` and `filled` are that quantity read against the
- * order's own rather than two instructions. The other three are the three ways
- * an order ends carrying less than it asked for, and an engine never handed
- * one has never been asked what it does with the quantity still working.
- */
-export type VenueDoes = 'fill' | 'reject' | 'cancel' | 'expire';
-
-/** One act of the schedule: what the destination does, to which order, when. */
-export interface VenueAct {
-  /**
-   * The nth order this destination took, counting from one.
-   *
-   * Orders and not intents: a bracket is never taken and a cancellation is
-   * answered without being held, so neither is counted and neither can be named
-   * here. An ordinal for the reason `conformance.md` section 3 gives a case's
-   * own frames: nobody writing a schedule knows the id an engine will mint.
-   */
-  readonly order: number;
-  /**
-   * Boundaries after the one the order arrived at, `0` being that boundary.
-   *
-   * Counted from the order rather than stated as a bar index, because the bar
-   * a strategy decides an order on moves the moment anything else about the run
-   * does, and a schedule in bar indices is one nobody can read back.
-   */
-  readonly afterBars: number;
-  readonly does: VenueDoes;
-  /**
-   * The cumulative quantity a fill reports, in units, or absent for all of it.
-   *
-   * Cumulative because a frame is (`stdlib.md` 17.8): `0` is the
-   * acknowledgement a venue sends before anything has traded, a number below
-   * the order's own is a partial fill, and one at or above it completes the
-   * order. A quantity below what this venue has already reported is a stale
-   * frame, which a venue really sends and the fold has to swallow, so it is
-   * stated here rather than refused.
-   */
-  readonly units?: number | null;
-  /** The destination's own text, which the ledger records against the row. */
-  readonly text?: string;
-}
-
-/**
- * The fill policy, and what this destination does to the orders it names.
- *
- * The schedule sits on the policy because it is the same kind of fact: how this
- * destination decides a fill, chosen before the first bar and carried in the
- * record beside the policy's own version, so a stored run replays as it ran.
- */
-export interface VenuePolicy extends FillPolicy {
-  readonly schedule?: readonly VenueAct[];
-}
+import { ENDED } from './acts.js';
+import type { VenueAct, VenuePolicy } from './acts.js';
 
 /** What the venue prices against and how it decides a fill. */
 export interface SimulatorOptions {
@@ -121,14 +63,6 @@ export interface SimulatorOptions {
   readonly slippageTicks: number;
   /** The declaration's own fill rule: where a market order is priced. */
   readonly fillOn: string;
-  /**
-   * The unit the declaration's quantity is stated in, `language.md` 13.3.
-   *
-   * Here because converting it is the destination's job and a fill is counted
-   * in units. Only the units this destination can arrive at reach it: the rest
-   * are refused before the first bar by `checkSettings`.
-   */
-  readonly qtyType: string;
 }
 
 /** One order this venue holds, and what it has said about it. */
@@ -150,20 +84,6 @@ interface Order {
 
 /** `language.md` 13.3: a market order priced at the close of its own bar. */
 const AT_CLOSE = 'close';
-
-/**
- * The word this venue reports each ending under.
- *
- * A destination with words of its own maps them onto the vocabulary in its
- * adapter, which is where `stdlib.md` 17.7 puts the mapping because a status
- * vocabulary differs per destination. This is this one's, and the whole of what
- * a schedule's verb means.
- */
-const ENDED: Readonly<Record<Exclude<VenueDoes, 'fill'>, string>> = {
-  reject: 'rejected',
-  cancel: 'cancelled',
-  expire: 'expired',
-};
 
 /**
  * A venue, for one run.
@@ -332,7 +252,7 @@ export class Simulator {
    *
    * **The quantity is converted into units here, because that is what a fill
    * is counted in and what every money figure is folded over.** A quantity
-   * travels in the declaration's own unit (`host-interface.md` 7.1) and the
+   * travels in the unit its intent names (`host-interface.md` 7.1) and the
    * destination is the party that converts it. This filled the number verbatim,
    * so a strategy sizing in lots on a lot of sixty five traded one sixty fifth
    * of what it asked for and the whole report was out by that factor. The units
@@ -423,11 +343,23 @@ export class Simulator {
    * The conversion `complete` did inline, wanted in two places the moment a
    * schedule can fill an order in pieces: the whole a piece is measured
    * against has to be the number the fill path would have reported.
+   *
+   * **The unit is the intent's own and never the declaration's.**
+   * `host-interface.md` 7.1 passes a quantity with the unit it was counted in,
+   * and a quantity the engine worked out from filled quantities, which every
+   * `close()` with no quantity is, states units whatever the declaration counts
+   * in. This read the declaration's unit instead, so under `qtyType = "lots"`
+   * the close of a one lot long of sixty five units was multiplied again and
+   * sold sixty five lots, leaving a short of four thousand one hundred and sixty
+   * units that a long-only strategy never closed. Every strategy sized in lots
+   * was wrong from its first exit. The units the declaration cannot convert are
+   * refused before the first bar by `checkSettings`, so only units and lots
+   * reach here.
    */
   private unitsOf(intent: OrderIntent): number {
     const stated = intent.qty ?? 0;
     const lot = this.options.contract.lotSize;
-    return this.options.qtyType === 'lots' && lot !== null && lot > 0 ? stated * lot : stated;
+    return intent.qtyType === 'lots' && lot !== null && lot > 0 ? stated * lot : stated;
   }
 
   /**

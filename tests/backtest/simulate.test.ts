@@ -63,7 +63,6 @@ function venueOn(chosen: Partial<SimulatorOptions> = {}): Simulator {
     fill: DEFAULT_FILL,
     slippageTicks: 0,
     fillOn: 'close',
-    qtyType: 'units',
     ...chosen,
   });
 }

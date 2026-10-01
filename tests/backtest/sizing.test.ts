@@ -53,6 +53,26 @@ test('and the money is folded over those units', () => {
   assert.equal(inLots.record.report.summary.charges, inUnits.record.report.summary.charges);
 });
 
+test('a close of a position held in lots sells the units the position holds', () => {
+  // One lot long, closed by close(). The close carries a quantity the engine
+  // worked out from the filled position, so it is in units whatever the
+  // declaration counts in (`host-interface.md` 7.1). The venue read the
+  // declaration's unit instead and multiplied again: the close of sixty five
+  // units sold sixty five lots, four thousand two hundred and twenty five
+  // units, and left a short of four thousand one hundred and sixty that a
+  // long-only strategy never closed.
+  const program = inAndOut({ qty: 1, qtyType: 'lots' });
+  const result = backtest(program, BARS, settingsFor(IN_LOTS));
+  assert.ok(result.ok);
+  const [entry, exit] = result.record.fills;
+  assert.equal(entry?.units, 65, 'one lot is sixty five units');
+  assert.equal(exit?.units, 65, 'the close sells what the position holds');
+  assert.equal(exit?.refSizeAfter, 0, 'and the position holds nothing after it');
+  const trades = result.record.report.trades;
+  assert.equal(trades.length, 1, 'one round trip, and no short opened by the close');
+  assert.equal(trades[0]?.isOpen, false);
+});
+
 test('a quantity in lots on an instrument that states none is refused', () => {
   // There is nothing to convert a lot into. Filling the lot count instead is
   // the defect this whole file exists for.
