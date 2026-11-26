@@ -218,10 +218,10 @@ test('a host that refuses leaves the read absent, says why, and the study keeps 
     assert.notEqual(held.retry, null, 'a refusal a user can act on is offered a retry');
   });
 
-// Catches: a study that waits for a host it does not need. The engine folds the
-// chart's own bars, so a read of this instrument at a coarser interval has no
-// transport in it at all.
-test('a read of this chart\'s own instrument needs no host and no lifecycle', () => {
+// Catches: a study that waits for a host it does not need. A whole multiple of
+// the chart's interval is folded from the chart's own bars, so attaching the
+// lifecycle a timeframe read declares fetches nothing and asks for no recompute.
+test('a read of this chart\'s own instrument at a whole multiple fetches nothing', async () => {
   const descriptor = descriptorOfSource(`version 1
 
 study("Bias", overlay = true)
@@ -231,8 +231,13 @@ hourly = req.timeframe("1h", close)
 plot(hourly, "Hourly close")
 `);
   const data = bars(24);
-  const values = descriptor.calc(data, {}, {}, contextOf(24));
-  assert.equal(descriptor.attach, undefined, 'nothing to attach: there is nothing to fetch');
+  const store: ChartStore = {};
+  const values = descriptor.calc(data, {}, store, contextOf(24));
+  const held = harness(() => Promise.resolve(hourly(3)));
+  held.attach(descriptor, store);
+  await settled();
+  assert.equal(held.asked.length, 0, 'nothing to fetch: the chart bars are the source');
+  assert.equal(held.recomputes, 0);
   assert.equal(column(values)[11], null, 'the first hour has not closed on bar 11');
   assert.equal(column(values)[12], 111, 'and it closes on the first bar of the next');
 });
@@ -248,3 +253,59 @@ plot(close, "Close")
 `);
   assert.equal(descriptor.attach, undefined);
 });
+
+/** A study that reads fifteen minutes of the chart's own instrument. */
+const FIFTEEN = `version 1
+
+study("Fifteen", overlay = true)
+
+plot(req.timeframe("15", close), "Fifteen")
+`;
+
+/** Ten minute chart bars, priced by index, from the same hour boundary. */
+function tenMinutes(count: number): readonly ChartBar[] {
+  const out: ChartBar[] = [];
+  for (let i = 0; i < count; i += 1) {
+    out.push({ open: 100, high: 101, low: 99, close: 100 + i, time: BASE_TIME + i * 10 * MINUTE });
+  }
+  return out;
+}
+
+/** Five minute bars of the same instrument, at prices no chart bar could produce. */
+function fiveMinuteBase(count: number): readonly ChartBar[] {
+  const out: ChartBar[] = [];
+  for (let i = 0; i < count; i += 1) {
+    out.push({ open: 1000, high: 1001, low: 999, close: 1000 + i, time: BASE_TIME + i * 5 * MINUTE });
+  }
+  return out;
+}
+
+// Catches: a station that still answers every read of the chart's own
+// instrument with "fold it yourself", which leaves a fifteen minute read on a
+// ten minute chart absent forever; one that asks for fifteen minute bars rather
+// than the five minute base the fold needs; and a range that stops at the
+// requested bucket rather than the end of the newest chart bar.
+test('a read the chart bars do not fold into is fetched at its base, through the newest chart bar',
+  async () => {
+    const descriptor = descriptorOfSource(FIFTEEN);
+    const settings: ChartSettings = {};
+    const store: ChartStore = {};
+    const data = tenMinutes(6);
+    const ctx: ChartCalcContext = { ...contextOf(6), interval: '10m' };
+    const held = harness(() => Promise.resolve(fiveMinuteBase(12)));
+
+    descriptor.calc(data, settings, store, ctx);
+    held.attach(descriptor, store);
+    await settled();
+
+    assert.deepEqual(held.asked[0], {
+      symbol: 'HERE',
+      interval: '5m',
+      from: BASE_TIME,
+      to: BASE_TIME + 60 * MINUTE,
+    });
+    const answered = descriptor.calc(data, settings, store, ctx);
+    // Chart bar 1, from ten past to twenty past, reads the base bar at a quarter
+    // past, which closes the first fifteen minute bucket at the base bar before it.
+    assert.deepEqual(column(answered).slice(0, 4), [null, 1002, 1002, 1005]);
+  });

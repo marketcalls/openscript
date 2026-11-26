@@ -306,10 +306,11 @@ biasTf = input("1D", "Bias timeframe", kind = "interval")
 bias   = req.timeframe(biasTf, ema(close, 20))
 ```
 
-An unrecognised timeframe is OS6001, and a timeframe finer than the chart's own
-is OS6002, since folding cannot invent bars that were never loaded. Both are
-worth saying in a tooltip, because the reader picking a 1 minute bias on a daily
-chart has made an honest mistake.
+An unrecognised timeframe is OS6001, and on a chart of a day or longer a
+timeframe finer than the chart's own is OS6002. On an intraday chart any whole
+number of minutes reads, finer than the chart's included, wherever the host
+serves bars. Both refusals are worth saying in a tooltip, because the reader
+picking a 1 minute bias on a daily chart has made an honest mistake.
 
 **The repaint mode is not an input, and should never be one.** A higher timeframe
 read declares its `mode`, one of those [../spec/stdlib.md](../spec/stdlib.md)

@@ -32,7 +32,7 @@
     { "file": "src/core/engine/library/index.ts", "count": 2, "reason": "The key an entry is indexed under and the arities a manifest refusal names: one internal, one printed for a human." },
     { "file": "src/core/engine/load.ts", "count": 2, "reason": "The path and the character position a malformed-program refusal names, printed for a human." },
     { "file": "src/core/engine/operations.ts", "count": 1, "reason": "The value a diagnostic names, printed for a human." },
-    { "file": "src/core/engine/timeframe.ts", "count": 1, "reason": "The timeframe a diagnostic suggests instead, printed for a human." },
+    { "file": "src/core/engine/timeframe.ts", "count": 2, "reason": "The timeframe a diagnostic suggests instead, printed for a human, and the base interval a host is asked for, a whole number of minutes no larger than a day that every writer spells alike." },
     { "file": "src/core/engine/verify.ts", "count": 4, "reason": "The versions and the indices a load-time refusal names, printed for a human." },
     { "file": "src/core/engine/verify-code.ts", "count": 16, "reason": "The instruction index, operand and depth a load-time refusal names, printed for a human." },
     { "file": "src/core/engine/verify-requests.ts", "count": 10, "reason": "The path into the program a load-time refusal names, printed for a human." },

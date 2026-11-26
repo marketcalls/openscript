@@ -30,6 +30,17 @@
  * by design, and why on the newest bucket, where there is nothing past the bar
  * to read, it is the bucket so far and nothing better exists.
  *
+ * **A read with a base reads to the end of the chart bar.** Its source is bars
+ * at a finer interval than the chart's (`request-plan.ts`), several of them
+ * inside each chart bar, so stopping at the chart bar's open would leave every
+ * one but the first unread. It consumes the source bars that open before the
+ * chart bar ends, which is everything the chart bar itself was built from and
+ * nothing after it, so confirmed and developing still never look past the bar.
+ * A developing read then takes the bucket the chart bar's last instant is in,
+ * which is the bucket still forming when the chart bar closes: on a ten minute
+ * chart reading fifteen, the bar from ten past to twenty past shows the bucket
+ * that opened at a quarter past.
+ *
  * **The boundary.** A bucket has begun on the first chart bar whose key is the
  * new one, because a bar's open instant is what dates it. So a confirmed read
  * steps to the closed bucket's value on the first chart bar of the next bucket,
@@ -236,7 +247,10 @@ function build(parts: RequestParts, request: Request, plan: RequestPlan): Read {
     // drawing everything that does not depend on it. A read with a reason is
     // never ready: it is not waiting for anything.
     ready:
-      reason === '' && (answer === undefined ? plan.query.read === 'timeframe' : 'bars' in answer),
+      reason === '' &&
+      (answer === undefined
+        ? plan.query.read === 'timeframe' && plan.base === undefined
+        : 'bars' in answer),
     reason,
     cursor: 0,
     openKey: undefined,
@@ -256,6 +270,9 @@ function valueOf(read: Read, bars: BarSource, index: number): Value {
   if (at === null) return ABSENT;
   const key = keyOf(read, at);
   if (key === undefined) return ABSENT;
+  if (read.plan.base !== undefined && read.plan.request.mode !== 'lookahead') {
+    return throughEnd(read, bars, index, at);
+  }
 
   const source = read.source ?? bars;
   const lookahead = read.plan.request.mode === 'lookahead';
@@ -282,8 +299,35 @@ function valueOf(read: Read, bars: BarSource, index: number): Value {
   return read.body.peek(read.open);
 }
 
+/**
+ * A read with a base: the source bars that open before this chart bar ends.
+ *
+ * The end is the next chart bar's open, or one chart interval past this bar's
+ * open where that comes first or there is no next bar yet, so a source that runs
+ * ahead of the chart is never read past the bar the chart is on.
+ */
+function throughEnd(read: Read, bars: BarSource, index: number, at: number): Value {
+  const span = read.plan.chartSpan ?? 0;
+  const next = bars.at(index + 1)?.time ?? null;
+  const end = next === null ? at + span : Math.min(next, at + span);
+  const source = read.source;
+  if (source === undefined) return ABSENT;
+  for (;;) {
+    const bar = source.at(read.cursor);
+    if (bar === undefined) break;
+    if (bar.time !== null && bar.time >= end) break;
+    read.cursor += 1;
+    const found = bar.time === null ? undefined : keyOf(read, bar.time);
+    if (found !== undefined) feed(read, bar, found);
+  }
+  if (read.plan.request.mode === 'confirmed') return read.closedValue;
+  const last = keyOf(read, end - 1);
+  if (last === undefined || read.openKey !== last || read.open === undefined) return ABSENT;
+  return read.body.peek(read.open);
+}
+
 function keyOf(read: Read, instant: number): number | undefined {
-  return bucketKeyOf(instant, read.plan.timeframe, read.plan.zone);
+  return bucketKeyOf(instant, read.plan.timeframe, read.plan.zone, read.plan.session);
 }
 
 /**

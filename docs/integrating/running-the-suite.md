@@ -302,6 +302,12 @@ from the bars without either engine.
 
 What no case has yet, each with the reason:
 
+- **A read folded from a base interval**, fifteen or three minutes on a ten
+  minute chart (`stdlib.md` 15.2). A case's host serves another instrument from
+  its own file and has no file for the chart's own instrument at a second
+  interval, so the two engines' own tests hold it instead:
+  `tests/engine/requests-base.test.ts` and `engine/tests/test_request_base.py`
+  assert the same columns from the same bars.
 - **A charge schedule the host supplied.** A supplied schedule beside a declared
   commission is refused before the first bar, and every shipped strategy
   declares one, so harvesting such a case needs a strategy that declares none.

@@ -313,8 +313,8 @@ the marker's declaration is fixed before bar 0; a per-bar one is OS3003.
 | Code | Means |
 |---|---|
 | OS6001 | The timeframe string is not a timeframe. Minutes are a number in a string, `"5"` or `"60"`; a day is `"1D"` |
-| OS6002 | The request is finer than the chart. Folding cannot invent bars that were never loaded |
-| OS6015 | The request is not a whole multiple of the chart's interval |
+| OS6002 | The request is finer than a daily chart, or finer than an intraday chart on a host that serves no bars of its own |
+| OS6015 | The request is not a whole multiple of the chart's interval, on a host that serves no bars of its own |
 | OS6007 | The host does not know that symbol on that exchange |
 | OS6008 | The instrument returned no bars over the range the chart covers |
 | OS6009 | The request failed: a connection, permission or quota problem in the host |

@@ -23,7 +23,7 @@ from openscript.adapter.reading import read_case
 from openscript.adapter.secondary import provider_for
 from openscript.adapter.serving import Serving
 from openscript.adapter.spellings import Malformed
-from openscript.buckets import bucket_key, fold_refusal, parse_timeframe
+from openscript.buckets import bucket_key, fold_plan, multiple_above, parse_timeframe
 from openscript.reasons import TEMPLATES, reason
 from openscript.request_plan import Answered, Pending, Refusal
 from openscript.values import ABSENT
@@ -225,11 +225,32 @@ class TheGrammar(unittest.TestCase):
         self.assertIsNone(bucket_key(1735689600000, day, "Area/Location"))
         self.assertIsNotNone(bucket_key(1735689600000, parse_timeframe("1h"), None))
 
-    def test_only_an_intraday_request_must_be_a_whole_multiple(self):
-        self.assertEqual(fold_refusal(parse_timeframe("90"), parse_timeframe("60")), ("OS6015", "120"))
-        self.assertEqual(fold_refusal(parse_timeframe("30"), parse_timeframe("60"))[0], "OS6002")
-        self.assertIsNone(fold_refusal(parse_timeframe("1D"), parse_timeframe("7")))
-        self.assertIsNone(fold_refusal(parse_timeframe("1W"), parse_timeframe("1D")))
+    def test_a_request_that_is_not_a_whole_multiple_is_folded_from_a_base(self):
+        """`stdlib.md` 15.2: the base is the longest interval dividing both."""
+        kind, base = fold_plan(parse_timeframe("90"), parse_timeframe("60"))
+        self.assertEqual((kind, base.text), ("base", "30m"))
+        kind, base = fold_plan(parse_timeframe("3"), parse_timeframe("10"))
+        self.assertEqual((kind, base.text), ("base", "1m"))
+        self.assertEqual(fold_plan(parse_timeframe("120"), parse_timeframe("60")), ("chart", None))
+        self.assertEqual(fold_plan(parse_timeframe("1D"), parse_timeframe("7")), ("chart", None))
+        self.assertEqual(fold_plan(parse_timeframe("1W"), parse_timeframe("1D")), ("chart", None))
+        self.assertEqual(fold_plan(parse_timeframe("15"), parse_timeframe("1D")), ("OS6002", None))
+        self.assertEqual(multiple_above(parse_timeframe("90"), parse_timeframe("60")), "120")
+
+    def test_an_intraday_key_counts_from_the_session_open(self):
+        """`compiled-program.md` 2.16.2: 09:15 opens the first sixty minute bucket, not 09:00."""
+        hour = parse_timeframe("60")
+        session = {"start": "09:15", "end": "15:30", "days": [1, 2, 3, 4, 5]}
+        zone = "UTC"
+        at_0915 = 1736154900000  # 2025-01-06 09:15 UTC
+        # Counted from the epoch, 09:15 and 10:14 would fall in two buckets.
+        self.assertNotEqual(bucket_key(at_0915, hour, zone), bucket_key(at_0915 + 59 * 60000, hour, zone))
+        self.assertEqual(
+            bucket_key(at_0915, hour, zone, session), bucket_key(at_0915 + 59 * 60000, hour, zone, session)
+        )
+        self.assertEqual(
+            bucket_key(at_0915, hour, zone, session) + 1, bucket_key(at_0915 + 60 * 60000, hour, zone, session)
+        )
 
 
 class ACaseIsItsOwnHost(unittest.TestCase):

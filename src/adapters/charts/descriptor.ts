@@ -197,10 +197,14 @@ export function descriptorFor(
             producedFor(ctx.settings).drawings,
         }
       : {}),
-    // A study that reads only this chart's bars needs no lifecycle: the engine
-    // folds its own, and a descriptor that declared one anyway would cost every
-    // host a subscription for a transport nothing asks to use.
-    ...(program.requires.includes('req.symbol')
+    // A study that reads only this chart's bars at its own interval needs no
+    // lifecycle: the engine folds its own, and a descriptor that declared one
+    // anyway would cost every host a subscription for a transport nothing asks
+    // to use. A `req.timeframe` read may need one, because whether its interval
+    // folds from the chart's bars or from a base the host serves depends on the
+    // chart's interval (`stdlib.md` 15.2), which is known only at calculation;
+    // the station then fetches nothing unless a read asks for a base.
+    ...(program.requires.includes('req.symbol') || program.requires.includes('req.timeframe')
       ? {
           attach(ctx: ChartAttachContext): () => void {
             stationIn(ctx.store).open(ctx);

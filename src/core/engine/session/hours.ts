@@ -75,6 +75,36 @@ export function standingIn(hours: Hours, at: Civil): Standing {
   return OUTSIDE;
 }
 
+/** Which trading day a reading belongs to, and how far into it. */
+export interface Placement {
+  /** The day number of the day the hours opened on. */
+  readonly day: number;
+  /** Minutes from that day's open: negative before it, past the close after it. */
+  readonly elapsed: number;
+}
+
+/**
+ * The trading day a wall clock reading belongs to, and the minutes since it
+ * opened, for counting intraday buckets from the open (`compiled-program.md`
+ * 2.16.2).
+ *
+ * Unlike `standingIn` it answers outside the hours as well, because a bar
+ * outside them still has to land in some bucket: before the open it is a
+ * negative count on the same day. The one reading that belongs to the day
+ * before is the morning part of a range that crosses midnight, which is the
+ * same rule `standingIn` applies inside the hours. The day list plays no part:
+ * where a bucket begins is a question about the clock, and whether the day is
+ * a trading day is not.
+ */
+export function placementIn(hours: Hours, at: Civil): Placement {
+  const minutes = at.hour * 60 + at.minute + at.second / 60;
+  const today = dayNumber(at.year, at.month, at.day);
+  if (hours.to < hours.from && minutes < hours.to) {
+    return { day: today - 1, elapsed: DAY - hours.from + minutes };
+  }
+  return { day: today, elapsed: minutes - hours.from };
+}
+
 function held(
   hours: Hours,
   openingDay: number,

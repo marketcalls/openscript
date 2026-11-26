@@ -65,7 +65,10 @@ const MINUTE = 60;
 interface Need {
   readonly symbol: string;
   readonly exchange: string | undefined;
+  /** The interval the bars are fetched at: the read's own, or its base. */
   readonly interval: string;
+  /** The read's own timeframe, whose buckets the range is quantised to. */
+  readonly reach: string;
   readonly from: number;
   readonly to: number;
 }
@@ -99,6 +102,8 @@ export class Station {
   private transport: Transport | undefined;
   private closed = false;
   private unsubscribe: (() => void) | undefined;
+  /** One chart bar's length in seconds, from the interval the chart stated. */
+  private chartSpan = 0;
 
   /**
    * The provider the engine is loaded with, bound to the bars on screen.
@@ -109,14 +114,19 @@ export class Station {
    * instrument would otherwise leave the old one being fetched for as long as
    * the study lives, and reported on.
    */
-  provider(bars: readonly ChartBar[]): RequestProvider {
+  provider(bars: readonly ChartBar[], interval?: string): RequestProvider {
     this.wanted.clear();
+    const chart = interval === undefined ? undefined : parseTimeframe(interval);
+    const minutes = chart === undefined ? undefined : minutesOf(chart);
+    this.chartSpan = minutes === undefined ? 0 : minutes * MINUTE;
     return (query: RequestQuery): RequestAnswer | undefined => {
-      // A read of the chart's own instrument at a coarser interval is folded
-      // from the bars the engine already holds, which is the read
-      // `host-interface.md` 5.1 says it can satisfy without a host.
-      if (query.read === 'timeframe') return undefined;
-      const need = needFor(query, bars);
+      // A read of the chart's own instrument at a whole multiple of its interval
+      // is folded from the bars the engine already holds, which is the read
+      // `host-interface.md` 5.1 says it can satisfy without a host. One whose
+      // bars come from a finer base interval cannot be, and is fetched like
+      // another instrument's.
+      if (query.read === 'timeframe' && query.interval === query.timeframe) return undefined;
+      const need = needFor(query, bars, this.chartSpan);
       if (need === undefined) return undefined;
       const key = keyOf(need);
       this.wanted.set(key, widest(this.wanted.get(key), need));
@@ -138,11 +148,8 @@ export class Station {
     const last = bars[bars.length - 1];
     if (last === undefined) return;
     for (const [key, need] of this.wanted) {
-      const timeframe = parseTimeframe(need.interval);
-      if (timeframe === undefined) continue;
-      const span = (minutesOf(timeframe) ?? nominalMinutes(timeframe)) * MINUTE;
-      const to = Math.ceil((last.time + 1) / span) * span;
-      if (to > need.to) this.wanted.set(key, { ...need, to });
+      const to = reachOf(need.reach, need.interval, last.time, this.chartSpan);
+      if (to !== undefined && to > need.to) this.wanted.set(key, { ...need, to });
     }
   }
 
@@ -332,22 +339,55 @@ function answerOf(entry: Entry | undefined): RequestAnswer {
  * hours too many is a floor being generous and asking for exactly the right
  * calendar month would need the instrument's zone to be stated here as well.
  */
-function needFor(query: RequestQuery, bars: readonly ChartBar[]): Need | undefined {
+function needFor(
+  query: RequestQuery,
+  bars: readonly ChartBar[],
+  chartSpan: number,
+): Need | undefined {
   const symbol = query.instrument;
   const first = bars[0];
   const last = bars[bars.length - 1];
   if (symbol === null || first === undefined || last === undefined) return undefined;
-  const timeframe = parseTimeframe(query.timeframe);
-  if (timeframe === undefined) return undefined;
-  const span = (minutesOf(timeframe) ?? nominalMinutes(timeframe)) * MINUTE;
+  const span = spanOf(query.timeframe);
+  const to = reachOf(query.timeframe, query.interval, last.time, chartSpan);
+  if (span === undefined || to === undefined) return undefined;
   const warmup = query.warmup ?? 0;
   return {
     symbol,
     exchange: query.exchange ?? undefined,
-    interval: query.timeframe,
+    interval: query.interval,
+    reach: query.timeframe,
     from: Math.floor((first.time - warmup * span) / span) * span,
-    to: Math.ceil((last.time + 1) / span) * span,
+    to,
   };
+}
+
+/** One bar of a timeframe, in seconds, at its nominal length. */
+function spanOf(text: string): number | undefined {
+  const timeframe = parseTimeframe(text);
+  if (timeframe === undefined) return undefined;
+  return (minutesOf(timeframe) ?? nominalMinutes(timeframe)) * MINUTE;
+}
+
+/**
+ * How far forward a read is fetched: to the end of the requested bucket the
+ * newest chart bar is in, and, for a read whose bars are a finer base, at least
+ * to the end of that chart bar, since a finer bucket can close before the chart
+ * bar does and the bars after it are still the chart bar's own.
+ */
+function reachOf(
+  timeframe: string,
+  interval: string,
+  newest: number,
+  chartSpan: number,
+): number | undefined {
+  const span = spanOf(timeframe);
+  if (span === undefined) return undefined;
+  const bucketEnd = Math.ceil((newest + 1) / span) * span;
+  if (interval === timeframe) return bucketEnd;
+  const step = spanOf(interval);
+  if (step === undefined) return undefined;
+  return Math.max(bucketEnd, Math.ceil((newest + Math.max(chartSpan, step)) / step) * step);
 }
 
 /** The host's own words, carried and never paraphrased. */

@@ -13,13 +13,14 @@
  */
 import type { PageBar } from './feed.js';
 
-/** A request, `host-interface.md` 5.2. These seven fields, under these names. */
+/** A request, `host-interface.md` 5.2. These eight fields, under these names. */
 export interface PageRequest {
   readonly id: number;
   readonly read: 'symbol' | 'timeframe';
   readonly instrument: string | null;
   readonly exchange: string | null;
   readonly timeframe: string;
+  readonly interval: string;
   readonly mode: 'confirmed' | 'developing' | 'lookahead';
   readonly warmup: number | null;
 }
@@ -44,6 +45,7 @@ export const REQUEST_FIELDS: readonly string[] = [
   'instrument',
   'exchange',
   'timeframe',
+  'interval',
   'mode',
   'warmup',
 ];
@@ -79,6 +81,7 @@ export function readRequest(query: unknown): { request: PageRequest; problems: r
     problems.push('exchange is neither a string nor absent');
   }
   if (typeof raw['timeframe'] !== 'string') problems.push('timeframe is not a string');
+  if (typeof raw['interval'] !== 'string') problems.push('interval is not a string');
   if (!MODES.includes(String(raw['mode']))) problems.push('mode is not one of the three');
   if (raw['warmup'] !== null && typeof raw['warmup'] !== 'number') {
     problems.push('warmup is neither a number nor absent');

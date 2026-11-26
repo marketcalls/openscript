@@ -13,11 +13,13 @@ key, and a bucket has begun on the first bar whose key is new. Every boundary
 question in ``requests.py`` reduces to that one comparison.
 
 **The two families are keyed differently, and the specification says why.** An
-intraday request is folded by counting, so its key is the instant divided by the
-period: buckets fall on the same boundaries for every engine and a session gap
-moves nothing. A day, week or month request is folded by the calendar, so its
-key is a civil date read in the instrument's zone. That is OS6015's distinction,
-which exempts the calendar units from the whole multiple rule for this reason.
+intraday request is folded by counting from the open of the trading day the bar
+belongs to: the session's open where the host stated a session, midnight in the
+instrument's zone where it stated none, and midnight UTC where it stated no zone.
+That is what makes a sixty minute bucket on a market opening at a quarter past
+the hour begin at a quarter past, as the venue's candles do. A day, week or month
+request is folded by the calendar, so its key is a civil date read in the
+instrument's zone.
 
 **A calendar bucket with no zone has no key**, and neither has one in a zone this
 engine cannot read (``zones.py`` says which it can and why). The first is the
@@ -37,7 +39,11 @@ from typing import Any, NamedTuple, Optional, Tuple
 
 from .canonical import canonical_number
 from .civil import MINUTE_MS, day_number
-from .zones import fields_in
+from . import dates as _calendar
+from .hours import trading_day_of
+
+#: Minutes in a day: the longest period counted from a trading day's open.
+_DAY_MINUTES = 1440
 
 #: 15.2's grammar. A bare number is minutes, which is the interval form a host
 #: supplies, and the letters are case sensitive.
@@ -103,7 +109,7 @@ def nominal_minutes(timeframe: Timeframe) -> float:
     return timeframe.count * NOMINAL[timeframe.unit]
 
 
-def bucket_key(instant: Any, timeframe: Timeframe, zone: Any) -> Optional[int]:
+def bucket_key(instant: Any, timeframe: Timeframe, zone: Any, session: Any = None) -> Optional[int]:
     """The bucket an instant falls in, or nothing when no key can be worked out.
 
     The four rows of section 2.16.2's table, in its order. A week is counted
@@ -117,10 +123,10 @@ def bucket_key(instant: Any, timeframe: Timeframe, zone: Any) -> Optional[int]:
         return None
     minutes = minutes_of(timeframe)
     if minutes is not None:
-        return math.floor(instant / (minutes * MINUTE_MS))
+        return _intraday_key(instant, minutes, zone, session)
     if zone is None:
         return None
-    civil = fields_in(instant, zone)
+    civil = _calendar.fields_in(instant, zone)
     if civil is None:
         return None
     if timeframe.unit == "M":
@@ -131,22 +137,53 @@ def bucket_key(instant: Any, timeframe: Timeframe, zone: Any) -> Optional[int]:
     return math.floor(math.floor((days + 3) / 7) / timeframe.count)
 
 
-def fold_refusal(requested: Timeframe, chart: Timeframe) -> Optional[Tuple[str, str]]:
-    """Whether the chart's bars can be folded into the requested ones.
+def _intraday_key(instant: float, minutes: float, zone: Any, session: Any) -> Optional[int]:
+    """The trading day and the period within it counted from the day's open, as one key.
 
-    Two refusals and no third, each as its code and, for OS6015, the multiple
-    it suggests. A request finer than the chart is OS6002, because folding
-    cannot invent bars that were never loaded; an intraday request that is not a
-    whole multiple of the chart's is OS6015, because a bucket boundary inside a
-    chart bar would put part of one bar in two requested bars. A dated request
-    is exempt from the second.
+    Each day owns ``2 * slots`` consecutive keys, so keys keep their time order
+    across days. A period of a day or longer keeps the count from the epoch.
     """
-    if nominal_minutes(requested) < nominal_minutes(chart):
-        return ("OS6002", "")
+    if minutes >= _DAY_MINUTES:
+        return math.floor(instant / (minutes * MINUTE_MS))
+    # Looked up on the calendar module at the call rather than imported, because
+    # that function is where a host that reads other zones puts its reader
+    # (`zones.py`), and a copy bound at import would never see it.
+    civil = _calendar.fields_in(instant, "UTC" if zone is None else zone)
+    if civil is None:
+        return None
+    day, elapsed = trading_day_of(None if zone is None else session, civil)
+    slots = math.ceil(_DAY_MINUTES / minutes) + 1
+    return day * 2 * slots + slots + math.floor(elapsed / minutes)
+
+
+def fold_plan(requested: Timeframe, chart: Optional[Timeframe]) -> Tuple[str, Optional[Timeframe]]:
+    """Where a read's requested bars are folded from, `stdlib.md` 15.2.
+
+    ``("chart", None)`` for the chart's own bars: a whole multiple of an intraday
+    chart's interval, a day, week or month, or a chart with no interval.
+    ``("base", base)`` for bars at the longest interval dividing both, which the
+    host serves: an intraday request that is not a whole multiple of an intraday
+    chart's interval, finer than it included. ``("OS6002", None)`` for a request
+    finer than a chart of a day or longer.
+    """
+    if chart is None:
+        return ("chart", None)
     wanted = minutes_of(requested)
     have = minutes_of(chart)
-    if wanted is None or have is None:
-        return None
-    if math.fmod(wanted, have) == 0:
-        return None
-    return ("OS6015", canonical_number(math.ceil(wanted / have) * have))
+    if wanted is not None and have is not None:
+        if math.fmod(wanted, have) == 0:
+            return ("chart", None)
+        base = float(math.gcd(int(wanted), int(have)))
+        return ("base", Timeframe(base, "m", canonical_number(base) + "m"))
+    if nominal_minutes(requested) < nominal_minutes(chart):
+        return ("OS6002", None)
+    return ("chart", None)
+
+
+def multiple_above(requested: Timeframe, chart: Timeframe) -> str:
+    """The whole multiple of the chart's interval at or above the requested one, for OS6015's fix."""
+    wanted = minutes_of(requested)
+    have = minutes_of(chart)
+    wanted = nominal_minutes(requested) if wanted is None else wanted
+    have = nominal_minutes(chart) if have is None else have
+    return canonical_number(max(1, math.ceil(wanted / have)) * have)

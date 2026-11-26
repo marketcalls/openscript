@@ -210,7 +210,7 @@ export function fullRun(
   options: ChartAdapterOptions,
 ): RunOutput {
   const station = stationIn(store);
-  const started = start(program, settings, ctx, options, station.provider(bars), bars);
+  const started = start(program, settings, ctx, options, station.provider(bars, ctx?.interval), bars);
   const engine = started.engine;
 
   // **A strategy is walked bar by bar and a study is handed the lot.** The

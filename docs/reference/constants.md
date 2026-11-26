@@ -285,8 +285,9 @@ Three rules, all of which have caught somebody:
   minute. There is no third spelling that means either.
 - **A bare number is read as minutes**, so `"60"` and `"1h"` are the same
   timeframe. That form exists because it is what an interval input supplies.
-- **A timeframe finer than the chart's own is OS6002**, because folding cannot
-  invent bars that were never loaded. An unrecognised code is OS6001.
+- **Any whole number of minutes reads on an intraday chart**, finer than the
+  chart's own included, where the host serves bars. On a chart of a day or
+  longer a finer timeframe is OS6002. An unrecognised code is OS6001.
 
 ### Higher timeframe modes
 

@@ -149,6 +149,7 @@ test('a request carries the fields section 5.2 prints, with the values it says',
     instrument: 'BBB',
     exchange: 'SAMPLE_VENUE',
     timeframe: '1h',
+    interval: '1h',
     mode: 'confirmed',
     warmup: 0,
   } satisfies PageRequest);
@@ -209,6 +210,7 @@ plot(req.timeframe("1h", close), "C")
     instrument: 'AAA',
     exchange: 'SAMPLE_VENUE',
     timeframe: '1h',
+    interval: '1h',
     mode: 'confirmed',
     warmup: 0,
   } satisfies PageRequest);

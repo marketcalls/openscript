@@ -8,23 +8,31 @@
  * the script wrote, the setting it named or the chart fact it named, and
  * nothing below bar 0 ever asks again.
  *
- * **Two refusals belong at load and four belong to the host.** A timeframe the
- * language does not know (OS6001), one finer than the chart's (OS6002) and one
- * that does not fold into the chart's (OS6015) are facts about the program and
- * the chart, both known before a bar runs, so they stop the load and name what
- * was refused. An unknown instrument (OS6007), a range with no bars (OS6008), a
- * source that refused (OS6009) and an interval the feed does not carry (OS6014)
- * are the host's answers: they leave the read absent, put the reason in
- * `req.error(read)` and let the study keep drawing everything else, which is
- * `stdlib.md` 15.5.
+ * **Where the requested bars come from is settled here too** (`timeframe.ts`,
+ * `foldPlan`): the chart's own bars, or bars at a finer base interval that the
+ * host serves, for an intraday request that is not a whole multiple of an
+ * intraday chart's interval, finer than it included. The query carries that
+ * interval as `interval`, so a host fetches the bars the fold needs.
+ *
+ * **Three refusals belong at load and four belong to the host.** A timeframe
+ * the language does not know (OS6001), one finer than a chart of a day or
+ * longer (OS6002), and a read that needs a host's bars on a host that serves
+ * none (OS6015 for a coarser one, OS6002 for a finer one) are facts about the
+ * program, the chart and the host, all known before a bar runs, so they stop
+ * the load and name what was refused. An unknown instrument (OS6007), a range
+ * with no bars (OS6008), a source that refused (OS6009) and an interval the feed
+ * does not carry (OS6014) are the host's answers: they leave the read absent,
+ * put the reason in `req.error(read)` and let the study keep drawing everything
+ * else, which is `stdlib.md` 15.5.
  */
 import { diagnosticFor } from '../diagnostics/index.js';
 import type { Diagnostic } from '../diagnostics/index.js';
 import { NO_POSITION, failure } from './errors.js';
 import type { EngineHost, RequestAnswer, RequestQuery, RequestRefusal } from './host.js';
 import type { ResolvedInput } from './inputs.js';
+import type { SessionHours } from './session/index.js';
 import type { Request, RequestField } from './types.js';
-import { foldRefusal, isIntraday, parseTimeframe } from './timeframe.js';
+import { foldPlan, isIntraday, minutesOf, multipleAbove, nominalMinutes, parseTimeframe } from './timeframe.js';
 import type { Timeframe } from './timeframe.js';
 
 /** What a read holds once its identity, its timeframe and its source are fixed. */
@@ -34,6 +42,15 @@ export interface RequestPlan {
   readonly timeframe: Timeframe;
   /** The zone a calendar bucket is dated in, or nothing when none was stated. */
   readonly zone: string | null;
+  /** The session an intraday bucket is counted from, when the host stated one. */
+  readonly session: SessionHours | undefined;
+  /**
+   * The base interval the requested bars are folded from, for a read the
+   * chart's own bars cannot be split into, or nothing when they can.
+   */
+  readonly base: Timeframe | undefined;
+  /** One chart bar's length in milliseconds, for a read with a base. */
+  readonly chartSpan: number | null;
 }
 
 export type PlanResult =
@@ -80,7 +97,7 @@ export function planRequests(
 ): PlanResult {
   const chart = chartTimeframe(host);
   const plans: RequestPlan[] = [];
-  const problem = collect(requests, inputs, host, chart, plans);
+  const problem = collect(requests, inputs, host, chart, plans, true);
   if (problem !== undefined) return { ok: false, diagnostic: problem };
   return { ok: true, plans };
 }
@@ -91,6 +108,7 @@ function collect(
   host: EngineHost,
   chart: Timeframe | undefined,
   into: RequestPlan[],
+  outermost: boolean,
 ): Diagnostic | undefined {
   for (const request of requests) {
     const written = identityOf(request.timeframe, inputs, host);
@@ -99,35 +117,49 @@ function collect(
       return failure('OS6001', NO_POSITION, { value: written ?? 'nothing' });
     }
     // The chart's interval is a host fact and a host may state none. Without it
-    // there is nothing to compare a request against, so the two comparisons are
-    // skipped rather than answered from a value nobody supplied.
-    const refusal = chart === undefined ? undefined : foldRefusal(timeframe, chart);
-    if (refusal !== undefined && chart !== undefined) {
-      if (refusal.code === 'OS6002') {
+    // there is nothing to compare a request against, so the chart's own bars
+    // are folded as they come rather than judged against a value nobody
+    // supplied.
+    const plan = foldPlan(timeframe, chart);
+    if (plan.kind === 'refused' && chart !== undefined) {
+      return failure('OS6002', NO_POSITION, { chart: chart.text, requested: timeframe.text });
+    }
+    const base = plan.kind === 'base' ? plan.base : undefined;
+    // A base is bars the host serves, so a host that serves none cannot give
+    // one; neither can a read written inside another, whose bars are the outer
+    // read's buckets rather than a series a host holds. Both keep the refusal
+    // a request that does not fold into its chart always had.
+    if (base !== undefined && chart !== undefined && (host.requestBars === undefined || !outermost)) {
+      if (nominalMinutes(timeframe) < nominalMinutes(chart)) {
         return failure('OS6002', NO_POSITION, { chart: chart.text, requested: timeframe.text });
       }
       return failure('OS6015', NO_POSITION, {
         requested: timeframe.text,
         chart: chart.text,
-        suggestion: refusal.suggestion,
+        suggestion: multipleAbove(timeframe, chart),
       });
     }
 
+    const chartMinutes = chart === undefined ? undefined : minutesOf(chart);
     into.push({
       request,
       timeframe,
       zone: host.instrument?.timezone ?? null,
+      session: host.instrument?.session,
+      base,
+      chartSpan: base === undefined || chartMinutes === undefined ? null : chartMinutes * 60_000,
       query: {
         id: request.id,
         read: request.read,
         instrument: instrumentOf(request, inputs, host),
         exchange: exchangeOf(request, inputs, host),
         timeframe: timeframe.text,
+        interval: base?.text ?? timeframe.text,
         mode: request.mode,
         warmup: request.warmup,
       },
     });
-    const nested = collect(request.body.requests, inputs, host, timeframe, into);
+    const nested = collect(request.body.requests, inputs, host, timeframe, into, false);
     if (nested !== undefined) return nested;
   }
   return undefined;
@@ -192,6 +224,9 @@ function chartTimeframe(host: EngineHost): Timeframe | undefined {
 export function askHost(plan: RequestPlan, host: EngineHost): RequestAnswer | undefined {
   const answer = host.requestBars?.(plan.query);
   if (answer !== undefined) return answer;
+  // A base has no chart bars to fall back on: nothing served is a feed that
+  // does not carry that interval for this instrument.
+  if (plan.base !== undefined) return { refused: { code: 'OS6014' } };
   if (plan.query.read === 'timeframe') return undefined;
   return { refused: { code: 'OS6007' } };
 }
@@ -247,10 +282,10 @@ export function reasonFor(refusal: RequestRefusal, query: RequestQuery): string 
     case 'OS6007':
       return diagnosticFor('OS6007', NO_POSITION, { symbol, exchange }).message;
     case 'OS6008':
-      return diagnosticFor('OS6008', NO_POSITION, { symbol, timeframe: query.timeframe }).message;
+      return diagnosticFor('OS6008', NO_POSITION, { symbol, timeframe: query.interval }).message;
     case 'OS6014':
       return diagnosticFor('OS6014', NO_POSITION, {
-        timeframe: query.timeframe,
+        timeframe: query.interval,
         symbol,
         available: refusal.available ?? 'nothing it named',
       }).message;
@@ -263,7 +298,7 @@ export function reasonFor(refusal: RequestRefusal, query: RequestQuery): string 
     default:
       return diagnosticFor('OS6009', NO_POSITION, {
         symbol,
-        timeframe: query.timeframe,
+        timeframe: query.interval,
         reason,
       }).message;
   }

@@ -1244,7 +1244,7 @@ does not accumulate a duplicate line per tick.
 
 | Call | Returns | Warmup | Lands in | For |
 |---|---|---|---|---|
-| `req.timeframe(timeframe, expr, mode = "confirmed")` | series of `expr`'s type | first bar the mode allows, section 15.3 | the study's own calculation, folded from the chart's bars | Read an expression computed on a coarser interval |
+| `req.timeframe(timeframe, expr, mode = "confirmed")` | series of `expr`'s type | first bar the mode allows, section 15.3 | the study's own calculation, folded from the chart's bars or from a finer base the host serves, section 15.2 | Read an expression computed on another interval, coarser or finer |
 | `req.symbol(symbol, timeframe, expr, exchange = chart.exchange, mode = "confirmed")` | series of `expr`'s type | as above, plus the host's answer | the contract's request for another instrument's bars, its attach lifecycle and its data status | Read an expression computed on another instrument |
 | `req.isReady(read)` | `series bool` | bar 0 | the same | Whether the host has answered yet |
 | `req.error(read)` | `series string` | bar 0 | the contract's data status | The reason a read failed, or `""` |
@@ -1257,8 +1257,43 @@ A timeframe is a count and a unit: `"1m"`, `"5m"`, `"15m"`, `"1h"`, `"4h"`,
 `"1D"`, `"1W"`, `"1M"`. The unit letters are case sensitive, so `"1M"` is one
 month and `"1m"` is one minute. A bare number is read as minutes, so `"60"` and
 `"1h"` are the same timeframe, because that is the form an interval input
-supplies. An unrecognised timeframe is OS6001, and a timeframe finer than the
-chart's own is OS6002, since folding cannot invent bars that were never loaded.
+supplies. An unrecognised timeframe is OS6001.
+
+**Any whole number of minutes reads on any intraday chart**, coarser or finer
+than the chart's own interval. Where its bars come from depends on how the two
+intervals relate:
+
+| Requested, on an intraday chart | Its bars are folded from |
+|---|---|
+| A whole multiple of the chart's interval, or a day, week or month | The chart's own bars |
+| Any other intraday interval, finer than the chart's included | Bars at the base interval, which the host serves |
+
+The base interval is the longest one that divides both the chart's interval and
+the requested one: five minutes for fifteen or twenty five on a ten minute chart,
+and one minute for three. A requested bucket whose boundary falls inside a chart
+bar cannot be cut out of the chart's bars, and a finer bucket cannot be either,
+so the bars it is folded from are the base bars inside each chart bar, all of
+them and nothing after it (`compiled-program.md` section 2.16.2). A read the
+host serves no base bars for is absent with its reason in `req.error`, and a host
+that serves no requests at all leaves such a read refused at load: OS6015 for a
+coarser one and OS6002 for a finer one. A read written inside another read is
+folded from that read's buckets and keeps to whole multiples of its timeframe.
+
+**A finer read is the last of its bars that closed by the chart bar's close.** On
+a ten minute chart, `req.timeframe("3", close)` on the bar from 09:15 to 09:25 is
+the close of the three minute bar from 09:21 to 09:24; with
+`mode = "developing"` it is the bar still forming at 09:25, the one from 09:24.
+
+**An intraday bucket is counted from the trading day's open**: the session's
+open where the host states a session, midnight in the instrument's timezone
+where it states none, and midnight UTC where it states no timezone either. So a
+sixty minute bucket on a market that opens at 09:15 runs from 09:15 to 10:15,
+as the venue's own candles do, and a period that does not divide a day, such as
+twenty five minutes, begins at the same time every day. An interval of a day or
+longer written in minutes or hours is counted from the epoch.
+
+On a chart of a day or longer, a requested timeframe finer than the chart's is
+OS6002: its base would be minutes across the whole of the chart's history.
 
 ### 15.3 The mode, which is the whole point of this section
 

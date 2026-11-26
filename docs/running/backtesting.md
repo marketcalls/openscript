@@ -130,10 +130,10 @@ averages span four times the time, its stop is four times as far from its entry
 in bar terms, and its signal count falls. Compare two intervals as two
 strategies, not as one strategy at two speeds.
 
-To read a coarser interval from a finer chart, use `req.timeframe`, which takes
-a mode saying what the read is allowed to know. Reading a finer interval from a
-coarser chart is OS6002, because folding cannot invent bars that were never
-loaded.
+To read another interval from the chart, use `req.timeframe`, which takes a mode
+saying what the read is allowed to know. On an intraday chart it reads any whole
+number of minutes, finer than the chart's included, where the host serves bars;
+reading a finer interval from a chart of a day or longer is OS6002.
 
 ## Choosing the date range
 

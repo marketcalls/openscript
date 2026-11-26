@@ -218,6 +218,10 @@ def _unreadable_zone(run: Any, instrument: Dict[str, Any]) -> Optional[str]:
     zoned = instrument.get("timezone") is not None
     if zoned and any(not is_intraday(one.timeframe) for one in run.plans):
         return "a day, week or month read"
+    # An intraday read is counted from the trading day's open, which is a wall
+    # clock reading in the zone as well (`compiled-program.md` 2.16.2).
+    if zoned and run.plans:
+        return "an intraday read counted from the trading day's open"
     if any(one["kind"] == "time" for one in program["inputs"]):
         return "a time input"
     if any(one["name"] in SESSION_FACTS for one in program["lib"]["functions"]):

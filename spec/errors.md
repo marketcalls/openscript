@@ -3157,9 +3157,9 @@ Severity error. Stage host. Since language version 1. Reference language.md 15.2
 - `{chart}` is the chart's interval.
 - `{requested}` is the interval that was requested.
 
-**Cause.** Folding a lower timeframe into a higher bar needs data from inside the bar, which the chart was not given. Inventing it is the definition of a repainting study, so the request is refused rather than approximated.
+**Cause.** A timeframe lower than the chart's needs data from inside each chart bar. On an intraday chart that data is a finer series the host serves, stdlib.md 15.2, and this host serves none; on a chart of a day or longer it would be minutes across the whole of the chart's history, which no read asks for. Inventing it is the definition of a repainting study, so the request is refused rather than approximated.
 
-**Fix.** Request {chart} or higher, or change the chart's interval to the lower one and fold upwards instead.
+**Fix.** Request {chart} or higher, run the study on a host that serves bars for other intervals, or change the chart's interval to the lower one and fold upwards instead.
 
 Before:
 
@@ -3519,9 +3519,9 @@ Severity error. Stage host. Since language version 1. Reference language.md 15.2
 - `{chart}` is the chart's interval.
 - `{suggestion}` is the nearest interval above the requested one that is a whole multiple of the chart's.
 
-**Cause.** An intraday request is folded by counting chart bars, so its interval must be a whole multiple of the chart's. Day, week and month requests are folded by the calendar instead, keyed by the civil date in the instrument's timezone, so they are exempt from this rule.
+**Cause.** An intraday request that is not a whole multiple of the chart's interval has bucket boundaries inside chart bars, so it is folded from a finer base interval that the host serves, stdlib.md 15.2. This host serves none, or the read is written inside another read, whose bars are that read's buckets rather than a series a host holds. A whole multiple is folded from the chart's own bars, and day, week and month requests are folded by the calendar, keyed by the civil date in the instrument's timezone, so neither needs a host.
 
-**Fix.** Request a multiple of {chart}, for example {suggestion}.
+**Fix.** Request a multiple of {chart}, for example {suggestion}, or run the study on a host that serves bars for other intervals.
 
 Before:
 
