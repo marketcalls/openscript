@@ -15,13 +15,15 @@
  * what keeps the off-by-one out of the fold.
  *
  * **The two families are keyed differently, and the specification says why.**
- * An intraday request is folded by counting, so its key is the instant divided
- * by the period: buckets fall on the same boundaries for every engine, a
- * session gap moves nothing, and a chart whose bars are not evenly spaced still
- * folds. A day, week or month request is folded by the calendar, so its key is
- * a civil date read in the instrument's timezone. That is OS6015's distinction,
- * which exempts the calendar units from the whole multiple rule for exactly
- * this reason.
+ * An intraday request is folded by counting, from the open of the trading day
+ * the bar belongs to: the session's open where the host stated a session,
+ * midnight in the instrument's timezone where it stated none, and midnight UTC
+ * where it stated no timezone either. Counting from the open is what makes a
+ * sixty minute bucket on a market opening at a quarter past the hour begin at a
+ * quarter past, as the venue's own candles do, and what keeps a period that does
+ * not divide a day from starting at a different time every day. A day, week or
+ * month request is folded by the calendar, so its key is a civil date read in
+ * the instrument's timezone.
  *
  * **A calendar bucket with no timezone has no key.** A host states the zone or
  * it does not, and an engine that quietly folded days in UTC would put a day
@@ -33,6 +35,8 @@
  * explanation is the one failure a trader cannot get past on their own.
  */
 import { dayNumber, fieldsIn } from '../stdlib/index.js';
+import { tradingDayOf } from './session/index.js';
+import type { SessionHours } from './session/index.js';
 
 export type TimeframeUnit = 'm' | 'h' | 'D' | 'W' | 'M';
 
@@ -103,21 +107,28 @@ export function barMinutesOf(interval: string | undefined): number | null {
   return timeframe === undefined ? null : nominalMinutes(timeframe);
 }
 
+/** Minutes in a day: the longest period counted from a trading day's open. */
+const DAY_MINUTES = 1440;
+
 /**
  * The bucket an instant falls in, or nothing when no key can be worked out.
  *
  * Nothing comes back for a calendar unit with no zone, and for an instant that
  * is not a finite number. Both leave the read absent rather than folded into a
  * bucket the engine invented.
+ *
+ * `session` is the host's stated session (`host-interface.md` 4.3), which is
+ * read only where a zone was stated as well, because the session is wall clock.
  */
 export function bucketKeyOf(
   instant: number,
   timeframe: Timeframe,
   zone: string | null,
+  session?: SessionHours,
 ): number | undefined {
   if (!Number.isFinite(instant)) return undefined;
   const minutes = minutesOf(timeframe);
-  if (minutes !== undefined) return Math.floor(instant / (minutes * MINUTE));
+  if (minutes !== undefined) return intradayKey(instant, minutes, zone, session);
 
   if (zone === null) return undefined;
   const civil = fieldsIn(instant, zone);
@@ -133,29 +144,77 @@ export function bucketKeyOf(
   return Math.floor(Math.floor((days + 3) / 7) / timeframe.count);
 }
 
-/** Why a requested timeframe cannot be folded onto the chart's, if it cannot. */
-export type FoldRefusal =
-  | { readonly code: 'OS6002' }
-  | { readonly code: 'OS6015'; readonly suggestion: string };
+/**
+ * An intraday key: the trading day, and the period within it counted from the
+ * day's open.
+ *
+ * A key is one integer, so the two are packed: each day owns `2 * slots`
+ * consecutive keys, wide enough for every period of the day on both sides of
+ * the open, which keeps keys in time order across days and never lets the last
+ * bucket of one day share a key with a bar before the next day's open. A period
+ * of a day or longer has nothing to count within a day and keeps the count from
+ * the epoch it always had.
+ */
+function intradayKey(
+  instant: number,
+  minutes: number,
+  zone: string | null,
+  session: SessionHours | undefined,
+): number | undefined {
+  if (minutes >= DAY_MINUTES) return Math.floor(instant / (minutes * MINUTE));
+  const civil = fieldsIn(instant, zone ?? 'UTC');
+  if (civil === null) return undefined;
+  const place = tradingDayOf(zone === null ? undefined : session, civil);
+  const slots = Math.ceil(DAY_MINUTES / minutes) + 1;
+  return place.day * 2 * slots + slots + Math.floor(place.elapsed / minutes);
+}
 
 /**
- * Whether the chart's bars can be folded into the requested ones.
+ * Where a read's requested bars are folded from, `stdlib.md` 15.2.
  *
- * Two refusals and no third. A request finer than the chart is OS6002, because
- * folding cannot invent bars that were never loaded, and an intraday request
- * that is not a whole multiple of the chart's is OS6015, because an intraday
- * bucket is counted rather than dated and a bucket boundary that fell inside a
- * chart bar would put part of one bar in two requested bars. A day, week or
- * month request is dated, so the multiple rule does not apply to it.
+ * - `chart`: the chart's own bars. A whole multiple of an intraday chart's
+ *   interval, a day, week or month on any chart, and a read whose chart states
+ *   no interval: each of those buckets holds whole chart bars.
+ * - `base`: bars at `base`, the longest interval that divides both the chart's
+ *   and the requested one, which the host serves. An intraday request that is
+ *   not a whole multiple of an intraday chart's interval, finer than it
+ *   included: a bucket boundary would fall inside a chart bar, so the chart's
+ *   own bars cannot be split into it and finer ones are folded instead.
+ * - OS6002: a request finer than a chart of a day or longer. Its base would be
+ *   minutes across the whole of a daily chart's history, which no read asks for.
  */
-export function foldRefusal(
-  requested: Timeframe,
-  chart: Timeframe,
-): FoldRefusal | undefined {
-  if (nominalMinutes(requested) < nominalMinutes(chart)) return { code: 'OS6002' };
+export type FoldPlan =
+  | { readonly kind: 'chart' }
+  | { readonly kind: 'base'; readonly base: Timeframe }
+  | { readonly kind: 'refused'; readonly code: 'OS6002' };
+
+export function foldPlan(requested: Timeframe, chart: Timeframe | undefined): FoldPlan {
+  if (chart === undefined) return { kind: 'chart' };
   const wanted = minutesOf(requested);
   const have = minutesOf(chart);
-  if (wanted === undefined || have === undefined) return undefined;
-  if (wanted % have === 0) return undefined;
-  return { code: 'OS6015', suggestion: `${Math.ceil(wanted / have) * have}` };
+  if (wanted !== undefined && have !== undefined) {
+    if (wanted % have === 0) return { kind: 'chart' };
+    const base = greatestDivisor(wanted, have);
+    return { kind: 'base', base: { count: base, unit: 'm', text: `${base}m` } };
+  }
+  if (nominalMinutes(requested) < nominalMinutes(chart)) return { kind: 'refused', code: 'OS6002' };
+  return { kind: 'chart' };
+}
+
+/** The whole multiple of the chart's interval at or above the requested one, for OS6015's fix. */
+export function multipleAbove(requested: Timeframe, chart: Timeframe): string {
+  const wanted = minutesOf(requested) ?? nominalMinutes(requested);
+  const have = minutesOf(chart) ?? nominalMinutes(chart);
+  return `${Math.max(1, Math.ceil(wanted / have)) * have}`;
+}
+
+function greatestDivisor(a: number, b: number): number {
+  let x = a;
+  let y = b;
+  while (y !== 0) {
+    const r = x % y;
+    x = y;
+    y = r;
+  }
+  return x;
 }

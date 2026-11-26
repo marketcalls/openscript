@@ -6,10 +6,16 @@ timeframe, and what makes a request that changed afterwards OS6013. So the three
 identity fields are resolved here, once, from the value the script wrote, the
 setting it named or the chart fact it named, and nothing below bar 0 asks again.
 
+**Where the requested bars come from is settled here too** (``fold_plan``): the
+chart's own bars, or bars at a finer base interval the host serves, for an
+intraday request that is not a whole multiple of an intraday chart's interval,
+finer than it included. The query carries that interval as ``interval``.
+
 **Three refusals belong at load and the rest belong to the host.** A timeframe
-the language does not know (OS6001), one finer than the chart's (OS6002) and one
-that does not fold into the chart's (OS6015) are facts about the program and the
-chart, both known before a bar runs, so they stop the load. An unknown
+the language does not know (OS6001), one finer than a chart of a day or longer
+(OS6002), and a read that needs a host's bars on a run with no provider (OS6015
+for a coarser one, OS6002 for a finer one) are facts about the program, the
+chart and the host, all known before a bar runs, so they stop the load. An unknown
 instrument (OS6007), a range with no bars (OS6008), a source that refused
 (OS6009) and an interval the feed does not carry (OS6014) are the host's
 answers: they leave the read absent, put the reason in ``req.error(read)`` and
@@ -25,7 +31,7 @@ instrument is OS6007, because the run holds none of that instrument's bars.
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
-from .buckets import Timeframe, fold_refusal, is_intraday, parse_timeframe
+from .buckets import Timeframe, fold_plan, is_intraday, minutes_of, multiple_above, nominal_minutes, parse_timeframe
 from .contracts import Bar
 from .diagnostics import Diagnostic, failure
 from .inputs import ResolvedInput
@@ -46,6 +52,11 @@ class RequestQuery:
     timeframe: str
     mode: str
     warmup: Optional[int]
+    #: The interval of the bars an answer holds, `host-interface.md` 5.2: the
+    #: timeframe itself, or the base a read is folded from when the requested
+    #: interval does not fold into the chart's. A host may send any interval
+    #: that divides it.
+    interval: str = ""
 
 
 @dataclass(frozen=True)
@@ -85,6 +96,12 @@ class Plan:
     timeframe: Timeframe
     #: The zone a calendar bucket is dated in, or nothing when none was stated.
     zone: Any
+    #: The session an intraday bucket is counted from, when the host stated one.
+    session: Any = None
+    #: The base interval the requested bars are folded from, or nothing.
+    base: Optional[Timeframe] = None
+    #: One chart bar's length in milliseconds, for a read with a base.
+    chart_span: Optional[float] = None
 
 
 def identity_of(field: Any, inputs: Sequence[ResolvedInput], instrument: Mapping[str, Any]) -> Optional[str]:
@@ -104,7 +121,10 @@ def identity_of(field: Any, inputs: Sequence[ResolvedInput], instrument: Mapping
 
 
 def plan_requests(
-    requests: Sequence[Any], inputs: Sequence[ResolvedInput], instrument: Mapping[str, Any]
+    requests: Sequence[Any],
+    inputs: Sequence[ResolvedInput],
+    instrument: Mapping[str, Any],
+    served: bool = False,
 ) -> Tuple[List[Plan], Optional[Diagnostic]]:
     """Every read the program makes, nested ones included, or the load refusal.
 
@@ -113,7 +133,7 @@ def plan_requests(
     """
     chart = parse_timeframe(instrument.get("interval"))
     plans: List[Plan] = []
-    return plans, _collect(requests, inputs, instrument, chart, plans)
+    return plans, _collect(requests, inputs, instrument, chart, plans, served, True)
 
 
 def _collect(
@@ -122,6 +142,8 @@ def _collect(
     instrument: Mapping[str, Any],
     chart: Optional[Timeframe],
     into: List[Plan],
+    served: bool,
+    outermost: bool,
 ) -> Optional[Diagnostic]:
     for request in requests:
         written = identity_of(request["timeframe"], inputs, instrument)
@@ -129,14 +151,23 @@ def _collect(
         if timeframe is None:
             return failure("OS6001", value="nothing" if written is None else written)
         # The chart's interval is a host fact and a host may state none; then
-        # there is nothing to compare a request against, and nothing is.
-        refused = None if chart is None else fold_refusal(timeframe, chart)
-        if refused is not None and chart is not None:
-            if refused[0] == "OS6002":
+        # the chart's own bars are folded as they come.
+        kind, base = fold_plan(timeframe, chart)
+        if kind == "OS6002" and chart is not None:
+            return failure("OS6002", chart=chart.text, requested=timeframe.text)
+        # A base is bars a host serves: a run with no provider has none, and a
+        # read written inside another folds that read's buckets. Both keep the
+        # refusal a request that does not fold into its chart always had.
+        if base is not None and chart is not None and (not served or not outermost):
+            if nominal_minutes(timeframe) < nominal_minutes(chart):
                 return failure("OS6002", chart=chart.text, requested=timeframe.text)
             return failure(
-                "OS6015", requested=timeframe.text, chart=chart.text, suggestion=refused[1]
+                "OS6015",
+                requested=timeframe.text,
+                chart=chart.text,
+                suggestion=multiple_above(timeframe, chart),
             )
+        chart_minutes = None if chart is None else minutes_of(chart)
         query = RequestQuery(
             id=request["id"],
             read=request["read"],
@@ -145,9 +176,20 @@ def _collect(
             timeframe=timeframe.text,
             mode=request["mode"],
             warmup=request["warmup"],
+            interval=timeframe.text if base is None else base.text,
         )
-        into.append(Plan(request, query, timeframe, instrument.get("timezone")))
-        nested = _collect(request["body"]["requests"], inputs, instrument, timeframe, into)
+        into.append(
+            Plan(
+                request,
+                query,
+                timeframe,
+                instrument.get("timezone"),
+                instrument.get("session"),
+                base,
+                None if base is None or chart_minutes is None else chart_minutes * 60000.0,
+            )
+        )
+        nested = _collect(request["body"]["requests"], inputs, instrument, timeframe, into, served, False)
         if nested is not None:
             return nested
     return None
@@ -181,6 +223,10 @@ def ask_host(plan: Plan, provider: Optional[Provider]) -> Optional[Answer]:
     answer = None if provider is None else provider(plan.query)
     if answer is not None:
         return answer
+    # A base has no chart bars to fall back on: nothing served is a feed that
+    # does not carry that interval for this instrument.
+    if plan.base is not None:
+        return Refusal("OS6014")
     if plan.query.read == "timeframe":
         return None
     return Refusal("OS6007")
@@ -213,14 +259,19 @@ def reason_for(refusal: Refusal, query: RequestQuery) -> str:
         exchange = "the chart's exchange" if query.exchange is None else query.exchange
         return reason("OS6007", symbol=symbol, exchange=exchange)
     if refusal.code == "OS6008":
-        return reason("OS6008", symbol=symbol, timeframe=query.timeframe)
+        return reason("OS6008", symbol=symbol, timeframe=_fetched(query))
     if refusal.code == "OS6014":
         available = "nothing it named" if refusal.available is None else refusal.available
-        return reason("OS6014", timeframe=query.timeframe, symbol=symbol, available=available)
+        return reason("OS6014", timeframe=_fetched(query), symbol=symbol, available=available)
     if refusal.code == "OS6015":
         suggestion = "a whole multiple of it" if refusal.available is None else refusal.available
         return reason(
             "OS6015", requested=query.timeframe, chart="the chart's interval", suggestion=suggestion
         )
     said = "the host gave no reason" if refusal.reason is None else refusal.reason
-    return reason("OS6009", symbol=symbol, timeframe=query.timeframe, reason=said)
+    return reason("OS6009", symbol=symbol, timeframe=_fetched(query), reason=said)
+
+
+def _fetched(query: RequestQuery) -> str:
+    """The interval the host was asked for: the base where there is one."""
+    return query.interval or query.timeframe

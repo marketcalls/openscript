@@ -1,9 +1,9 @@
 # Higher timeframes
 
-By the end of this page you can read a value computed on a coarser interval from
-a script running on a finer one, choose knowingly between the three modes such a
-read must declare, and say what each mode returns on a coarse bar that has not
-finished.
+By the end of this page you can read a value computed on another interval from
+a script running on a chart, coarser or finer than the chart's own, choose
+knowingly between the three modes such a read must declare, and say what each
+mode returns on a bar that has not finished.
 
 ## What folding means
 
@@ -16,10 +16,17 @@ questions:
 
 `req.timeframe` answers both. The chart's bars are grouped into coarse bars, the
 expression is computed over those coarse bars, and the result is sampled back
-onto the chart's own bars, one value per chart bar. That grouping is the fold,
-and folding is why the coarse interval has to be a whole multiple of the chart's
-interval: the engine counts chart bars into a coarse bar, and a coarse bar that
-ends halfway through a chart bar cannot be counted.
+onto the chart's own bars, one value per chart bar. That grouping is the fold.
+
+When the requested interval is a whole multiple of the chart's, such as thirty
+minutes on a ten minute chart, every coarse bar holds whole chart bars and the
+chart's own bars are folded. When it is not, such as fifteen minutes on a ten
+minute chart, a coarse bar would end halfway through a chart bar, so the read is
+folded from finer bars the host serves instead: the **base** interval, the
+longest one that divides both, which is five minutes here. The same is true of an
+interval finer than the chart's, such as three minutes on a ten minute chart,
+whose base is one minute. You write the same call in every case; where the bars
+come from is the engine's business.
 
 ```
 req.timeframe(timeframe, expr, mode = "confirmed")
@@ -40,18 +47,19 @@ formatted label.
 | Rule | What happens when it is broken |
 |---|---|
 | The timeframe must be a form the language knows | OS6001 at compile time, naming the value |
-| It must not be finer than the chart's interval | OS6002, naming both intervals |
-| An intraday request must be a whole multiple of the chart's interval | OS6015, suggesting the nearest interval above that is |
-| Day, week and month requests are folded by the calendar, keyed by the civil date in the instrument's timezone | Exempt from the multiple rule |
+| On a chart of a day or longer, it must not be finer than the chart's interval | OS6002, naming both intervals |
+| An intraday request that is not a whole multiple of an intraday chart's interval needs a host that serves bars | On a host that serves none, OS6015 for a coarser one and OS6002 for a finer one |
+| Day, week and month requests are folded by the calendar, keyed by the civil date in the instrument's timezone | Always folded from the chart's own bars |
 | The symbol and timeframe of a request are fixed before bar 0 | OS6013 if they change mid-run |
-| The host must be able to serve the interval for this instrument | OS6014, listing the intervals it does serve |
+| The host must be able to serve the base interval for this instrument | The read is absent, and `req.error` names the interval with OS6014's sentence |
 
-OS6002 is the rule worth understanding rather than memorising. Folding a lower
-timeframe into a higher bar needs data from inside that bar, and the chart was
-never given it. An engine that filled the gap would be inventing prices, which
-is the definition of a repainting study, so the request is refused instead of
-approximated. If you need five minute detail, put the chart on five minutes and
-fold upward.
+Neither refusal is about the arithmetic any more: on an intraday chart any whole
+number of minutes reads, fifteen and twenty five on a ten minute chart included,
+and so does three. What is refused is a read that needs bars nobody can supply.
+A host that serves no bars of its own can only fold the chart's, and an engine
+that filled the gap would be inventing prices, which is the definition of a
+repainting study, so the request is refused instead of approximated. On such a
+host, put the chart on the finest interval you need and fold upward.
 
 OS6013 is the same principle applied to the request itself. The host fetches a
 requested series once, keyed by symbol and timeframe, and keeps it in step with
@@ -71,6 +79,32 @@ h = req.timeframe(tf, high)
 tf = input("1h", "Higher timeframe", kind = "interval")
 h = req.timeframe(tf, high)
 ```
+
+## Where a coarse bar begins
+
+An intraday coarse bar is counted from the open of the trading day: the
+session's open where the host states the instrument's session, and midnight in
+its timezone where it states none. On a market that opens at 09:15, sixty minute
+bars run 09:15 to 10:15, 10:15 to 11:15 and so on, the same candles the venue and
+a sixty minute chart show, and the last one of the day is whatever is left before
+the close. A period that does not divide a day, such as twenty five minutes,
+begins at the open every day rather than drifting.
+
+## Reading a finer interval
+
+A read finer than the chart's interval answers the last of its bars that closed
+by the chart bar's close. On a ten minute chart, the bar from 09:15 to 09:25
+holds the three minute bars that began at 09:15, 09:18 and 09:21, and the one
+from 09:24 still forming when it closes:
+
+```
+lastThree  = req.timeframe("3", close)                         // the 09:21 bar's close
+stillGoing = req.timeframe("3", close, mode = "developing")   // the 09:24 bar so far
+```
+
+Use it for what a finer interval says that the chart's own bar cannot: the
+direction of the last few minutes inside a longer bar, or a finer average
+sampled once per chart bar.
 
 ## What the expression means inside a read
 

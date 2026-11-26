@@ -37,8 +37,9 @@
  * gives is how a host loses every session study and is told nothing.
  */
 import { fieldsIn } from '../../stdlib/index.js';
-import { standingIn } from './hours.js';
-import type { Hours, Standing } from './hours.js';
+import type { Civil } from '../../stdlib/index.js';
+import { placementIn, standingIn } from './hours.js';
+import type { Hours, Placement, Standing } from './hours.js';
 
 /** The instrument's trading session, as `host-interface.md` 4.3 prints it. */
 export interface SessionHours {
@@ -127,6 +128,21 @@ export function recordProblem(
     return 'session days numbered 1 to 7, where Monday is 1';
   }
   return undefined;
+}
+
+/** Midnight to midnight: the trading day of an instrument with no stated session. */
+const WHOLE_DAY: Hours = { from: 0, to: 1440, days: null };
+
+/**
+ * The trading day a wall clock reading belongs to, and the minutes since that
+ * day opened: the session's open where the host stated a session, and midnight
+ * where it stated none. This is what an intraday bucket is counted from
+ * (`compiled-program.md` 2.16.2), so a sixty minute bucket on a market that
+ * opens at a quarter past the hour begins at a quarter past the hour, as the
+ * venue's own candles do.
+ */
+export function tradingDayOf(stated: SessionHours | undefined, at: Civil): Placement {
+  return placementIn(hoursOf(stated) ?? WHOLE_DAY, at);
 }
 
 /** Reads one run's session facts, one bar at a time. */

@@ -8,7 +8,7 @@ read is allowed to know, and tell at a glance whether a study repaints.
 
 | Call | Returns | Warmup | For |
 |---|---|---|---|
-| `req.timeframe(timeframe, expr, mode = "confirmed")` | series of `expr`'s type | the first bar the mode allows | An expression computed on a coarser interval of this instrument |
+| `req.timeframe(timeframe, expr, mode = "confirmed")` | series of `expr`'s type | the first bar the mode allows | An expression computed on another interval of this instrument, coarser or finer |
 | `req.symbol(symbol, timeframe, expr, exchange = chart.exchange, mode = "confirmed")` | series of `expr`'s type | the same, plus the host's answer | An expression computed on another instrument |
 | `req.isReady(read)` | `series bool` | bar 0 | Whether the host has answered yet |
 | `req.error(read)` | `series string` | bar 0 | The reason a read failed, or `""` |
@@ -30,7 +30,7 @@ the chart you are looking at, changing when the coarser bar changes.
 
 ### `req.timeframe(timeframe, expr, mode = "confirmed")`
 
-Read an expression computed on a coarser interval.
+Read an expression computed on another interval, coarser or finer.
 Parameters: `timeframe` `string` required, a timeframe code from section 3;
 `expr` any expression, compiled as its own program over the requested bars;
 `mode` `string` default `"confirmed"`, one of `"confirmed"`, `"developing"` or
@@ -160,9 +160,14 @@ minute. The bare number form exists because that is what an interval input
 supplies, so a value straight out of the settings dialog can go straight into a
 read.
 
-An unrecognised timeframe is OS6001. A timeframe finer than the chart's own is
-OS6002, because folding cannot invent bars that were never loaded: a daily chart
-does not contain the five minute bars that made it.
+An unrecognised timeframe is OS6001. On an intraday chart any whole number of
+minutes reads, coarser or finer than the chart's own: a whole multiple of the
+chart's interval is folded from the chart's bars, and any other interval from
+finer bars the host serves, so on a host that serves none it is OS6015 for a
+coarser one and OS6002 for a finer one. On a chart of a day or longer, a
+timeframe finer than the chart's is OS6002, because a daily chart does not
+contain the five minute bars that made it. See
+[higher timeframes](../../data/higher-timeframes.md).
 
 ---
 

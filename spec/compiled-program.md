@@ -992,28 +992,57 @@ folded differently would disagree about the value of every higher timeframe stud
 ever written, one bar at a time, in a way nothing on a chart would show.
 
 **Where the requested bars come from.** A `"timeframe"` read is of the chart's own
-instrument at a coarser interval, so an engine folds the bars it already holds. A
-`"symbol"` read is of an instrument the engine holds none of, so the bars come
-from the host (`host-interface.md` section 5) and a host that serves none gives
-its engine no `req.symbol` capability. A host may also answer a `"timeframe"`
-read, and an engine that is answered folds the answer instead of the chart's bars.
-Either way one fold runs, over whichever bars are the source.
+instrument, so an engine folds the bars it already holds when every requested
+bucket holds whole chart bars: a whole multiple of an intraday chart's interval,
+or a day, week or month. A `"symbol"` read is of an instrument the engine holds
+none of, so the bars come from the host (`host-interface.md` section 5) and a
+host that serves none gives its engine no `req.symbol` capability. A host may
+also answer a `"timeframe"` read, and an engine that is answered folds the answer
+instead of the chart's bars. Either way one fold runs, over whichever bars are
+the source.
+
+**A read with a base.** An intraday request on an intraday chart that is not a
+whole multiple of the chart's interval, finer than it included, has bucket
+boundaries inside chart bars (`stdlib.md` section 15.2). Its source is the host's
+bars at the **base** interval, the longest that divides both the chart's and the
+requested one, asked for as the request's `interval` (`host-interface.md`
+section 5.2), for a `"timeframe"` read and a `"symbol"` read alike. A host that
+serves no requests leaves it refused at load, OS6015 for a coarser read and
+OS6002 for a finer one, and so does a read written inside another read, whose
+bars are that read's buckets.
 
 **A bucket is a key, and the key comes from a bar's open instant.** Source bars
 whose open instants give the same key are one requested bar. The key is:
 
 | Timeframe | Key |
 |---|---|
-| `m`, `h` | The open instant divided by the period, rounded down, counted from the epoch |
+| `m`, `h` | The trading day the open instant belongs to, and the number of whole periods from that day's open, below |
 | `D` | The day number of the civil date the open instant falls on, in the instrument's timezone, divided by the count |
 | `W` | That day number's week, weeks starting Monday, divided by the count |
 | `M` | The civil year times twelve plus the month, divided by the count |
 
+**An intraday key counts from the trading day's open.** The open is the session's
+start where the host states a session (`host-interface.md` section 4.3), and
+midnight where it states none, read in the instrument's timezone, or in UTC
+where the host states no timezone either. The trading day of an instant is the
+civil date of its wall clock reading, except the morning part of a session that
+crosses midnight, which belongs to the day before. Within the day, the count is
+the minutes from the open divided by the period and rounded down: negative
+before the open, and counting on past the close. An interval of a day or longer
+written in minutes or hours keeps the count from the epoch, the open instant
+divided by the period and rounded down.
+
+The day and the count are one key. Only two things about a key are ever used,
+whether two keys are equal and which is later, so any packing that keeps keys
+distinct across days and in time order folds the same buckets. Both reference
+engines pack them as `day * 2 * slots + slots + count`, with `slots` the number
+of periods in a day rounded up, plus one.
+
 An intraday key is a count and a calendar key is a date, which is the distinction
-OS6015 turns on: an intraday request must be a whole multiple of the chart's
-interval, because a boundary that fell inside a chart bar would put part of one
-bar in two requested bars, and a dated request is exempt because its boundaries
-are the calendar's.
+a read with a base turns on: an intraday request that is not a whole multiple of
+the chart's interval would put part of one chart bar in two requested bars, so
+it is folded from finer bars, and a dated request has the calendar's boundaries
+and never needs to be.
 
 **A calendar key needs the instrument's timezone and is absent without it.** A
 host states the zone or it does not; an engine that folded days in a zone nobody
@@ -1043,6 +1072,15 @@ clock. So **a confirmed read steps on the first chart bar of the next bucket**,
 holds that value across every bar of it including the last, and steps again on
 the first bar of the one after: on the bar a bucket closes, that bucket had not
 closed at the bar's own open instant, so the bar still reads the one before it.
+
+**A read with a base reads to the end of the chart bar** in its first two
+horizons. It consumes the source bars that open before the chart bar ends: the
+next chart bar's open, or one chart interval past this bar's open where that
+comes first or there is no next bar. A confirmed read then takes the last bucket
+that closed, as above, and a developing read takes the bucket keyed by the chart
+bar's last instant, as far as it has formed, and is absent when no source bar of
+that bucket has been folded. A lookahead read is unchanged: the bucket keyed `k`,
+in full.
 
 The first two horizons stop at the chart bar, so an engine given a whole dataset
 and an engine given one bar at a time compute the same numbers. The third does

@@ -826,7 +826,7 @@ library manifest, alongside the count of manifest entries that have a case.
 
 | Feature | What it is | Status | Section | Test |
 |---|---|---|---|---|
-| `req.timeframe(tf, expr, mode)` | An expression computed on a coarser interval and folded onto this chart's bars | `implemented` | `stdlib.md` 15.1, `language.md` 15.2 | `req/timeframe` |
+| `req.timeframe(tf, expr, mode)` | An expression computed on another interval, coarser or finer, and folded onto this chart's bars | `implemented` | `stdlib.md` 15.1, `language.md` 15.2 | `req/timeframe` |
 | `req.symbol(...)` | An expression computed on another instrument, with its own request and attach lifecycle in the contract | `specified` | `stdlib.md` 15.1 | `req/symbol` |
 | Timeframe strings | A count and a unit, case sensitive so `"1M"` is a month and `"1m"` a minute, with a bare number read as minutes; an unrecognised one is OS6001 | `specified` | `stdlib.md` 15.2, `errors.md` OS6001 | `req/timeframe-strings` |
 | A timeframe finer than the chart's | OS6002, and a timeframe that does not fold into the chart's is OS6015, since folding cannot invent bars that were never loaded | `specified` | `stdlib.md` 15.2, `errors.md` OS6002, `errors.md` OS6015 | `req/finer-timeframe` |

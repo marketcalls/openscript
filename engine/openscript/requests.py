@@ -159,7 +159,7 @@ def _build(parts: RequestParts, request: Dict[str, Any], plan: Plan) -> Read:
     # A fold of the chart's own bars needs nothing from the host, so it is
     # answered the moment it is planned; a read the host is still fetching is not.
     if answer is None:
-        answered = plan.query.read == "timeframe"
+        answered = plan.query.read == "timeframe" and plan.base is None
     else:
         answered = isinstance(answer, Answered)
     return Read(
@@ -177,7 +177,41 @@ def _at(source: Sequence[Any], index: int) -> Any:
 
 
 def _key(read: Read, instant: Any) -> Optional[int]:
-    return bucket_key(instant, read.plan.timeframe, read.plan.zone)
+    return bucket_key(instant, read.plan.timeframe, read.plan.zone, read.plan.session)
+
+
+def _through_end(read: Read, bars: Sequence[Any], index: int, at: float, context: CallContext) -> Any:
+    """A read with a base: the source bars that open before this chart bar ends.
+
+    The end is the next chart bar's open, or one chart interval past this one's
+    where that comes first or there is no next bar, so a source running ahead of
+    the chart is never read past the bar the chart is on. A developing read takes
+    the bucket the chart bar's last instant is in, absent where none of it has
+    been folded.
+    """
+    span = read.plan.chart_span or 0.0
+    after = _at(bars, index + 1)
+    following = None if after is None else after.time
+    end = at + span if following is None else min(following, at + span)
+    source = read.source
+    if source is None:
+        return ABSENT
+    while True:
+        bar = _at(source, read.cursor)
+        if bar is None:
+            break
+        if bar.time is not None and bar.time >= end:
+            break
+        read.cursor += 1
+        found = None if bar.time is None else _key(read, bar.time)
+        if found is not None:
+            _feed(read, bar, found, context)
+    if read.plan.request["mode"] == "confirmed":
+        return read.closed_value
+    last = _key(read, end - 1)
+    if last is None or read.open_key != last or read.open is None:
+        return ABSENT
+    return read.body.peek(read.open, context)
 
 
 def _value_of(read: Read, bars: Sequence[Any], index: int, context: CallContext) -> Any:
@@ -189,6 +223,8 @@ def _value_of(read: Read, bars: Sequence[Any], index: int, context: CallContext)
     key = None if at is None else _key(read, at)
     if key is None:
         return ABSENT
+    if read.plan.base is not None and read.plan.request["mode"] != "lookahead":
+        return _through_end(read, bars, index, at, context)
     source = bars if read.source is None else read.source
     lookahead = read.plan.request["mode"] == "lookahead"
     while True:

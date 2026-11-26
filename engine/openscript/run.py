@@ -441,7 +441,7 @@ def load(
     if not resolved.ok:
         return LoadResult(None, resolved.diagnostic)
     record = {} if instrument is None else instrument
-    plans, refused = plan_requests(checked.program["requests"], resolved.inputs, record)
+    plans, refused = plan_requests(checked.program["requests"], resolved.inputs, record, provider is not None)
     if refused is not None:
         return LoadResult(None, refused)
     entries = _entries_for(checked.program, served)

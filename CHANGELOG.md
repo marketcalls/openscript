@@ -7,6 +7,62 @@ nothing, fails the build before it can become permanent.
 
 ---
 
+## 0.9.0
+
+Any minute timeframe now reads on any intraday chart, and intraday reads are
+counted from the trading day's open. No compiled-format change: the format stays
+1.1, and every shipped example compiles to the same bytes as with 0.8.1.
+
+**Read this before upgrading: some intraday reads change their numbers.** An
+intraday `req.timeframe` or `req.symbol` read was counted from midnight UTC on
+1 January 1970, so where a market opens at a time that is not a whole number of
+the read's periods past midnight UTC, its buckets did not start at the open. On
+a market opening at 09:15 in a zone five and a half hours ahead of UTC, a sixty
+minute read ran 09:15 to 09:30 and then 09:30 to 10:30, where the venue's own
+candles and a sixty minute chart run 09:15 to 10:15; a ten minute read started at
+09:10; and a twenty five minute read started at a different time every day. An
+intraday bucket is now counted from the open of the trading day: the session's
+start where the host states a session, midnight in the instrument's timezone
+where it states only a zone, and midnight UTC where it states neither. A read
+whose period divides the time from midnight UTC to the open is unchanged; every
+other intraday read now matches the venue's candles, and a saved study using one
+redraws after the upgrade. `language.md` 4.1 promises that a bug fix changing a
+number waits for a new language version; this is the one recorded exception,
+decision 76 of `spec/decisions.md` says why, and 4.1 says so.
+
+**Any whole number of minutes reads on an intraday chart.** Fifteen and twenty
+five minutes on a ten minute chart were OS6015, and three minutes was OS6002.
+A whole multiple of the chart's interval is still folded from the chart's own
+bars; any other intraday interval, finer than the chart's included, is folded
+from bars at the longest interval dividing both, which the host serves: five
+minutes for fifteen or twenty five on a ten minute chart, one minute for three.
+A finer read answers the last of its bars that closed by the chart bar's close,
+and with `mode = "developing"` the one still forming. `req.symbol` reads another
+instrument at any interval the same way. A host that serves no requests keeps
+both refusals exactly as before, so no study that loaded draws an empty line. A
+read written inside another read, and a minute read on a chart of a day or
+longer, keep the old rules.
+
+**For hosts.** A request carries a new field, `interval`: the bars to send. It is
+the request's own `timeframe` on every read except one folded from a base, where
+it is that base, and a host may answer with bars at any interval that divides it
+(`host-interface.md` 5.2). A `"timeframe"` read whose `interval` differs from its
+`timeframe` cannot be folded from the chart's bars, so a host that answers it
+with nothing leaves it absent with OS6014's sentence rather than folded. The
+chart adapter serves those reads through the chart's `requestBars` like a read of
+another instrument, fetching through the end of the newest chart bar, and now
+takes the chart's interval from the calculation context to do it.
+
+**The second engine reads a host's zone for every bucket.** It holds only UTC
+and leaves other zones to the host's reader, which a host puts on
+`openscript.dates`. Its bucket keys read the zone through that module now, so a
+host with a reader folds day, week and month reads in its zone where they were
+absent before, and its intraday reads with them. Without a reader, a case in
+another zone with an intraday read is reported unsupported rather than answered
+in the wrong calendar.
+
+---
+
 ## 0.8.1
 
 Two fixes and a documentation correction. No compiled-format change: the format

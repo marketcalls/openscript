@@ -509,6 +509,10 @@ the project rather than as an aspiration:
   computes it right, because a chart that silently redraws itself after an update
   is worse than a chart that is slightly wrong in a documented way.
 
+One exception has been made, and it is recorded rather than folded into the rule:
+intraday reads counted from the session's open instead of the epoch, decision 76
+of `decisions.md`.
+
 ---
 
 ## 5. Types

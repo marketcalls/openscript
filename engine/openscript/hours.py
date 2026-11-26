@@ -144,6 +144,37 @@ def standing_in(hours: Hours, at: Civil) -> Standing:
     return OUTSIDE
 
 
+#: Midnight to midnight: the trading day of an instrument with no stated session.
+WHOLE_DAY = Hours(0, DAY_MINUTES)
+
+
+def placement_in(hours: Hours, at: Civil) -> Tuple[int, float]:
+    """The trading day a reading belongs to and the minutes since it opened.
+
+    `compiled-program.md` 2.16.2 counts an intraday bucket from here. Unlike
+    ``standing_in`` it answers outside the hours as well: before the open is a
+    negative count on the same day, and the one reading that belongs to the day
+    before is the morning part of a range crossing midnight. The day list plays
+    no part, because where a bucket begins is a question about the clock.
+    """
+    minutes = minutes_of(at)
+    today = day_number(at.year, at.month, at.day)
+    if hours.end < hours.start and minutes < hours.end:
+        return today - 1, DAY_MINUTES - hours.start + minutes
+    return today, minutes - hours.start
+
+
+def trading_day_of(session: object, at: Civil) -> Tuple[int, float]:
+    """``placement_in`` against the record's session, or midnight where it states none."""
+    hours = WHOLE_DAY
+    if isinstance(session, dict):
+        start = clock_minutes(session.get("start"))
+        end = clock_minutes(session.get("end"))
+        if start is not None and end is not None:
+            hours = Hours(start, end)
+    return placement_in(hours, at)
+
+
 def _held(hours: Hours, opening_day: int, elapsed: float, remaining: float) -> Standing:
     """One reading inside the hours, unless the day it opened on is not one of theirs."""
     if hours.days is not None and weekday_of_day(opening_day) not in hours.days:

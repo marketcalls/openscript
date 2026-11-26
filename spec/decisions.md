@@ -5031,3 +5031,52 @@ and `scripts/lib/declared-fields.mjs` (new), which prove each refusal on both
 sides of that version; `compiled-program.md` 11; `docs/visuals/fills.md`,
 `tables.md` and `colors.md`; `tests/adapters/charts/bands.test.ts` and
 `grids.test.ts` (new) and `undrawable.test.ts`.
+
+## 76. Intraday reads are counted from the session's open, and any minute timeframe reads on any intraday chart, in language version 1
+
+**The question.** Two faults in `req.timeframe`, reported together. An intraday
+bucket was counted from the epoch, so on a market whose session opens at a
+quarter past the hour, or in a zone whose offset is not a whole hour, the sixty
+and thirty minute buckets began on the hour and the half hour while the venue's
+own candles began at the open, and a period that does not divide a day began at
+a different time every day. And only a whole multiple of the chart's interval
+could be read at all: fifteen and three minutes on a ten minute chart were OS6015
+and OS6002, which other charting tools a trader moves between do not refuse.
+
+**The decision.** Both are fixed in language version 1. An intraday bucket is
+counted from the trading day's open: the session's start where the host states a
+session, midnight in the instrument's timezone where it states none, midnight UTC
+where it states no zone. An intraday request that is not a whole multiple of an
+intraday chart's interval, finer than it included, is folded from bars at the
+longest interval dividing both, which the host serves as the request's new
+`interval` field, and reads to the end of each chart bar. A host that serves no
+requests keeps both refusals exactly as before, so no study that loaded becomes
+an empty line.
+
+**Why version 1 and not version 2.** `language.md` 4.1 says a bug fix that
+changes a number is a version change, and the anchoring changes numbers: every
+intraday read whose period does not divide the distance from midnight UTC to the
+session's open, which on a market opening at 09:15 in a zone five and a half
+hours ahead is every period not dividing forty five minutes, sixty and thirty
+among them. The project's owner chose to fix it in version 1 rather than leave
+version 1 computing candles that match no chart, knowing that a saved study
+redraws after the update. This is a recorded exception to 4.1, the only one, and
+4.1 points here rather than being quietly weakened; the changelog says which
+reads change. Lifting the two refusals changes no number, because nothing those
+refusals stopped ever ran.
+
+**What this does not settle.** A read written inside another read keeps the
+whole multiple rule, because its source is the outer read's buckets and no host
+holds them. A finer read on a chart of a day or longer stays OS6002, because its
+base would be minutes over the whole of a daily chart's history. A `"symbol"`
+read at a whole multiple is still served at its own interval, so a developing
+read of another instrument on history still takes each requested bar's final
+value, as it did before.
+
+**Edits.** `stdlib.md` 15.2; `compiled-program.md` 2.16.2; `host-interface.md`
+5.1 and 5.2; `language.md` 4.1; `errors.json` and `errors.md`, OS6002 and OS6015;
+`src/core/engine/timeframe.ts`, `request-plan.ts`, `requests.ts`, `host.ts` and
+`session/`; `src/adapters/charts/requests.ts` and `run.ts`; the second engine's
+`buckets.py`, `hours.py`, `request_plan.py` and `requests.py`;
+`tests/engine/requests-base.test.ts` (new), `requests-host.test.ts` and
+`tests/hosts/reads.ts`.

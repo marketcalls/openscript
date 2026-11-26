@@ -117,6 +117,13 @@ export interface RequestQuery {
   readonly exchange: string | null;
   /** A timeframe string, `stdlib.md` 15.2, resolved from the program. */
   readonly timeframe: string;
+  /**
+   * The interval of the bars an answer holds, `host-interface.md` 5.2: the
+   * read's own `timeframe`, or the finer base interval its bars are folded from
+   * when the requested one does not fold into the chart's (`stdlib.md` 15.2).
+   * A host may answer with bars at any interval that divides it.
+   */
+  readonly interval: string;
   readonly mode: 'confirmed' | 'developing' | 'lookahead';
   /**
    * Requested bars of history the expression needs, or nothing when no number

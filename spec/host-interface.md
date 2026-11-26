@@ -462,9 +462,18 @@ This duty is optional. A host that serves no requests gives its engine no
 `req.symbol` capability, and a program that reads another instrument is refused
 at load with OS6006 naming the tag, rather than drawing a study with a silently
 empty line through it. `req.timeframe` is not the host's to withhold: a read of
-the chart's own instrument at a coarser interval is one the engine folds from the
-bars it already holds, so an engine serves that tag whether or not its host
-answers requests (section 5.2 says what a host that does answer one may do).
+the chart's own instrument at a whole multiple of an intraday chart's interval,
+or at a day, week or month, is one the engine folds from the bars it already
+holds, so an engine serves that tag whether or not its host answers requests
+(section 5.2 says what a host that does answer one may do).
+
+One kind of `req.timeframe` read does need the host: an intraday timeframe that
+is not a whole multiple of an intraday chart's interval, finer than it included,
+such as fifteen or three minutes on a ten minute chart (`stdlib.md` section
+15.2). Its bars are folded from a finer **base** interval that the chart's bars
+cannot be split into, so the host serves them as it serves another instrument's.
+A host that serves no requests leaves those reads refused at load, OS6015 for a
+coarser one and OS6002 for a finer one, exactly as before a host could serve them.
 
 ### 5.2 The request
 
@@ -475,6 +484,7 @@ answers requests (section 5.2 says what a host that does answer one may do).
 | `instrument` | identity | The instrument, as section 9 defines an identity: opaque, and either the chart's own or one the host resolved |
 | `exchange` | string | Where it trades. The chart's exchange when the script named none (`stdlib.md` section 15.1) |
 | `timeframe` | string | A canonical timeframe string (`stdlib.md` section 15.2) |
+| `interval` | string | The interval of the bars an answer holds: `timeframe` itself, or the base interval of a read folded from finer bars (`stdlib.md` section 15.2) |
 | `mode` | string | `"confirmed"`, `"developing"` or `"lookahead"` (`stdlib.md` section 15.3) |
 | `warmup` | number | How many requested bars of history the expression needs before its first value, absent where the compiler had no number |
 
@@ -494,13 +504,24 @@ there, because a read of another instrument that quietly became a read of this
 one is a line on a chart nobody asked for. A host with no identity to resolve
 refuses that read with OS6007, section 5.4.
 
-**`read` is what a host may decline.** A read of the chart's own instrument at a
-coarser interval is one the engine can satisfy from the bars it already holds
-(section 5.1), so a host that serves no answer to a `"timeframe"` read has
-declined nothing: the engine folds. Serving one is still allowed, and a host with
-its own coarser bars for the chart's instrument serves them the same way it
-serves another instrument's. A `"symbol"` read is the one an engine cannot
-satisfy, so nothing to serve there is a refusal, section 5.4.
+**`read` and `interval` say what a host may decline.** A `"timeframe"` read whose
+`interval` is its `timeframe` is one the engine can satisfy from the bars it
+already holds (section 5.1), so a host that serves no answer to it has declined
+nothing: the engine folds. Serving one is still allowed, and a host with its own
+coarser bars for the chart's instrument serves them the same way it serves
+another instrument's. A `"symbol"` read, and a `"timeframe"` read whose
+`interval` differs from its `timeframe`, are the ones an engine cannot satisfy,
+so nothing to serve there is a refusal, section 5.4: OS6007 for another
+instrument, OS6014 for a base interval the feed does not carry.
+
+**`interval` is the bars to send.** It is `timeframe` on every read except one
+folded from a finer base, where it is that base: the longest interval that
+divides both the chart's and the requested one, so five minutes for fifteen or
+twenty five minutes on a ten minute chart and one minute for three. A host may
+send bars at `interval` or at any interval that divides it, because the engine
+folds by time and a finer bar is folded the same way. Bars at a coarser interval
+would be refused by nothing and folded wrong, which is why the field is stated
+rather than left to be guessed from the chart.
 
 **`mode` says whether the newest requested bar may be one still forming.** A
 `"confirmed"` read never takes the value of a requested bar that has not closed,
@@ -515,7 +536,8 @@ marks a repainting study on its own surface reads the mark from here.
 moment the engine has been handed no bars: it has no span to state. The host has
 one, because the bars are the host's. So the range an answer must cover is the
 range the chart's own bars cover, extended backwards by `warmup` requested bars
-and forwards to the end of the requested bar the newest chart bar falls in. The
+and forwards to the end of the requested bar the newest chart bar falls in, and,
+for a read folded from a base, at least to the end of the newest chart bar. The
 length of a requested bar comes from the timeframe string, `stdlib.md` section
 15.2.
 
